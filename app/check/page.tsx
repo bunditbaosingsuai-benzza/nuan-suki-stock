@@ -5,48 +5,72 @@ import { supabase } from '../../lib/supabase'
 
 export default function DailyCheckPage() {
   const [products, setProducts] = useState<any[]>([])
-  const [dailyChecks, setDailyChecks] = useState<any[]>([])
+  const [todayChecks, setTodayChecks] = useState<any[]>([])
+  const [yesterdayChecks, setYesterdayChecks] = useState<any[]>([])
   
-  // State สำหรับฟอร์มรอบเช้า
   const [selectedProductId, setSelectedProductId] = useState('')
   const [yesterdayBalance, setYesterdayBalance] = useState('')
   const [incoming, setIncoming] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // 🔴 State สำหรับจัดการการ Edit รอบเย็น
-  const [editingId, setEditingId] = useState<number | null>(null)
+  // 🔴 แยก State สำหรับแก้ไข "รับเข้า"
+  const [editingIncomingId, setEditingIncomingId] = useState<number | null>(null)
+  const [editIncomingCount, setEditIncomingCount] = useState<string>('') 
+
+  // 🔴 แยก State สำหรับแก้ไข "นับตอนเย็น"
+  const [editingEveningId, setEditingEveningId] = useState<number | null>(null)
   const [editEveningCount, setEditEveningCount] = useState<string>('')
 
   const today = new Date()
-  const formattedDate = today.toLocaleDateString('th-TH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
   const todayForDB = today.toLocaleDateString('en-CA')
+  
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayForDB = yesterday.toLocaleDateString('en-CA')
 
-  const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select('id, name, unit')
-      .order('name', { ascending: true })
-    if (data) setProducts(data)
-  }
+  const fetchData = async () => {
+    const { data: pData } = await supabase.from('products').select('*').order('id', { ascending: true })
+    if (pData) setProducts(pData)
 
-  const fetchDailyChecks = async () => {
-    const { data, error } = await supabase
-      .from('daily_stock_checks')
-      .select(`*, products ( name, unit, min_limit, max_limit )`)
-      .eq('check_date', todayForDB)
-      .order('id', { ascending: false })
+    const { data: tData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', todayForDB)
+    if (tData) setTodayChecks(tData)
 
-    if (!error) setDailyChecks(data || [])
+    const { data: yData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', yesterdayForDB)
+    if (yData) setYesterdayChecks(yData)
   }
 
   useEffect(() => {
-    fetchProducts()
-    fetchDailyChecks()
+    fetchData()
   }, [])
+
+  const tableRows = products.map(product => {
+    const tCheck = todayChecks.find(c => c.product_id === product.id)
+    const yCheck = yesterdayChecks.find(c => c.product_id === product.id)
+    const defaultYesterdayBalance = yCheck && yCheck.evening_counted !== null ? yCheck.evening_counted : 0
+
+    return {
+      id: product.id,
+      name: product.name,
+      unit: product.unit,
+      min_limit: product.min_limit,
+      max_limit: product.max_limit,
+      check_id: tCheck?.id || null,
+      yesterday_balance: tCheck ? tCheck.yesterday_balance : defaultYesterdayBalance,
+      incoming: tCheck ? tCheck.incoming : 0,
+      evening_counted: tCheck ? tCheck.evening_counted : null,
+    }
+  })
+
+  const handleSelectProduct = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const pid = e.target.value
+    setSelectedProductId(pid)
+    
+    const row = tableRows.find(r => r.id === parseInt(pid))
+    if (row) {
+      setYesterdayBalance(String(row.yesterday_balance))
+      setIncoming(String(row.incoming === 0 ? '' : row.incoming))
+    }
+  }
 
   const handleMorningSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,6 +82,7 @@ export default function DailyCheckPage() {
         .from('daily_stock_checks')
         .upsert({
           product_id: parseInt(selectedProductId),
+          check_date: todayForDB,
           yesterday_balance: yesterdayBalance ? parseInt(yesterdayBalance) : 0,
           incoming: incoming ? parseInt(incoming) : 0,
         }, { onConflict: 'check_date, product_id' })
@@ -67,7 +92,7 @@ export default function DailyCheckPage() {
       setSelectedProductId('')
       setYesterdayBalance('')
       setIncoming('')
-      fetchDailyChecks()
+      fetchData()
     } catch (error: any) {
       alert('❌ บันทึกไม่สำเร็จ: ' + error.message)
     } finally {
@@ -75,93 +100,113 @@ export default function DailyCheckPage() {
     }
   }
 
-  // 🔴 ฟังก์ชันบันทึกยอดนับตอนเย็น
-  const handleSaveEveningCount = async (id: number) => {
+  // 🔴 ฟังก์ชันบันทึกเฉพาะ "ยอดรับเข้า"
+  const handleSaveIncoming = async (productId: number, currentYestBal: number, currentEvening: number | null) => {
     try {
       const { error } = await supabase
         .from('daily_stock_checks')
-        .update({ 
-          // ถ้าลบว่างเปล่าไว้ จะบันทึกเป็น null (รอนับ) แต่ถ้ามีเลขก็แปลงเป็นตัวเลข
-          evening_counted: editEveningCount === '' ? null : parseInt(editEveningCount) 
-        })
-        .eq('id', id)
+        .upsert({
+          product_id: productId,
+          check_date: todayForDB,
+          yesterday_balance: currentYestBal,
+          incoming: editIncomingCount === '' ? 0 : parseInt(editIncomingCount),
+          evening_counted: currentEvening 
+        }, { onConflict: 'check_date, product_id' })
 
       if (error) throw error
 
-      setEditingId(null) // ปิดโหมด Edit
-      fetchDailyChecks() // ดึงข้อมูลใหม่มาโชว์ (ให้มันคำนวณใหม่)
+      setEditingIncomingId(null)
+      fetchData()
     } catch (error: any) {
-      alert('❌ อัปเดตไม่สำเร็จ: ' + error.message)
+      alert('❌ อัปเดตยอดรับเข้าไม่สำเร็จ: ' + error.message)
+    }
+  }
+
+  // 🔴 ฟังก์ชันบันทึกเฉพาะ "ยอดนับตอนเย็น"
+  const handleSaveEvening = async (productId: number, currentYestBal: number, currentInc: number) => {
+    try {
+      const { error } = await supabase
+        .from('daily_stock_checks')
+        .upsert({
+          product_id: productId,
+          check_date: todayForDB,
+          yesterday_balance: currentYestBal, 
+          incoming: currentInc, 
+          evening_counted: editEveningCount === '' ? null : parseInt(editEveningCount) 
+        }, { onConflict: 'check_date, product_id' })
+
+      if (error) throw error
+
+      setEditingEveningId(null)
+      fetchData()
+    } catch (error: any) {
+      alert('❌ อัปเดตยอดนับไม่สำเร็จ: ' + error.message)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans text-gray-800">
-      <div className="max-w-6xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
         
-        <div className="flex items-center mb-8">
-          <h1 className="text-2xl font-bold text-red-600 mr-4">เช็คสต๊อกรายวัน</h1>
-          <span className="bg-white px-4 py-1 rounded-full border border-gray-200 text-sm shadow-sm font-medium">
-            {formattedDate}
-          </span>
+        <div className="flex items-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold text-[#df2323]">เช็คสต๊อกรายวัน</h1>
+          <div className="bg-white px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm">
+            {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
         </div>
 
-        {/* ฟอร์มรอบเช้า */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-          <div className="bg-yellow-500 p-3 px-6 text-white font-bold flex items-center">
-            <span className="mr-2">☀️</span> บันทึกยอดตอนเช้า (เปิดร้าน / รับของเข้า)
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+          <div className="bg-[#facc15] p-4 px-8 text-white font-bold flex items-center gap-3 border-b border-[#eab308]">
+            <span className="text-2xl">☀️</span> บันทึกยอดตอนเช้า (เปิดร้าน / รับของเข้า)
           </div>
-          <form onSubmit={handleMorningSubmit} className="p-6 flex flex-wrap items-end gap-6">
+          <form onSubmit={handleMorningSubmit} className="p-8 flex flex-wrap items-end gap-6">
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">เลือกสินค้า</label>
-              <select required value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:border-yellow-500 bg-white">
-                <option value="" disabled>-- เลือกรายการสินค้า --</option>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">เลือกสินค้า</label>
+              <select required value={selectedProductId} onChange={handleSelectProduct}
+                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] bg-white shadow-inner transition-colors">
+                <option value="" disabled>-- เลือกลงยอดรับเข้า --</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
               </select>
             </div>
-            <div className="w-32">
-              <label className="block text-sm font-medium text-gray-700 mb-1">เหลือเมื่อวาน</label>
+            <div className="w-40">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">เหลือเมื่อวาน</label>
               <input type="number" value={yesterdayBalance} onChange={(e) => setYesterdayBalance(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:border-yellow-500" placeholder="ยอดเก่า" />
+                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors bg-gray-50" placeholder="0" />
             </div>
-            <div className="w-32">
-              <label className="block text-sm font-medium text-gray-700 mb-1">ของเข้าวันนี้</label>
+            <div className="w-40">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">ของเข้าวันนี้</label>
               <input type="number" required value={incoming} onChange={(e) => setIncoming(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:border-yellow-500" placeholder="รับมา" />
+                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors" placeholder="รับมา" />
             </div>
-            <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-medium">
+            <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[58px]">
               {isSubmitting ? 'กำลังบันทึก...' : '+ เพิ่มลงตารางวันนี้'}
             </button>
           </form>
         </div>
 
-        {/* ตารางรอบเย็น */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-blue-500 p-3 px-6 text-white font-bold flex items-center justify-between">
-            <div><span className="mr-2">🌙</span> ตารางเช็คของตอนเย็น (ปิดร้าน)</div>
-            <div className="text-sm bg-blue-600 px-3 py-1 rounded-full">{dailyChecks.length} รายการ</div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-[#2563eb] p-4 px-8 text-white font-bold flex items-center justify-between gap-3 border-b border-[#1d4ed8]">
+            <div className="flex items-center gap-3"><span className="text-2xl">🌙</span> ตารางเช็คของตอนเย็น (ปิดร้าน)</div>
+            <div className="text-sm bg-[#1d4ed8] px-4 py-1.5 rounded-full shadow-inner font-medium">{tableRows.length} รายการ</div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-center border-collapse">
               <thead>
-                <tr className="text-sm border-b border-gray-200">
-                  <th className="p-4 text-left bg-white w-1/4">รายการสินค้า (หน่วย)</th>
-                  <th className="p-4 bg-yellow-500 text-white border-r border-yellow-600">เหลือเมื่อวาน</th>
-                  <th className="p-4 bg-yellow-500 text-white border-r border-yellow-600">รับเข้า</th>
-                  <th className="p-4 bg-yellow-600 text-white font-bold border-r border-yellow-700">รวมมีของ</th>
-                  <th className="p-4 bg-blue-500 text-white font-bold border-r border-blue-600 w-40">นับได้ตอนเย็น</th>
-                  <th className="p-4 bg-gray-100 text-gray-700">ถูกใช้ไป</th>
-                  <th className="p-4 bg-red-50 text-red-600 font-bold border-l border-red-100">ต้องสั่งเพิ่ม</th>
+                <tr className="text-sm border-b border-gray-100">
+                  <th className="p-5 text-left bg-gray-50/50 w-1/4 font-semibold text-gray-600">รายการสินค้า (หน่วย)</th>
+                  <th className="p-5 bg-[#facc15] text-[#854d0e] border-r border-[#eab308]">เหลือเมื่อวาน</th>
+                  <th className="p-5 bg-[#facc15] text-[#854d0e] border-r border-[#eab308]">รับเข้า</th>
+                  <th className="p-5 bg-[#eab308] text-[#854d0e] font-bold border-r border-[#ca8a04]">รวมมีของ</th>
+                  <th className="p-5 bg-[#2563eb] text-white font-bold border-r border-[#1d4ed8] w-48">นับได้ตอนเย็น</th>
+                  <th className="p-5 bg-gray-100 text-gray-600">ถูกใช้ไป</th>
+                  <th className="p-5 bg-[#fef2f2] text-[#df2323] font-bold border-l border-[#fecaca]">ต้องสั่งเพิ่ม</th>
                 </tr>
               </thead>
               <tbody>
-                {dailyChecks.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-gray-400">ยังไม่มีการบันทึกข้อมูลของวันนี้</td></tr>
+                {tableRows.length === 0 ? (
+                  <tr><td colSpan={7} className="p-16 text-gray-400">ยังไม่มีรายการสินค้าในระบบ</td></tr>
                 ) : (
-                  dailyChecks.map((item) => {
-                    // Logic คำนวณอัตโนมัติ
+                  tableRows.map((item) => {
                     const totalAvailable = item.yesterday_balance + item.incoming;
                     const eveningCounted = item.evening_counted !== null ? item.evening_counted : '-';
                     const usedAmount = item.evening_counted !== null ? (totalAvailable - item.evening_counted) : '-';
@@ -169,9 +214,9 @@ export default function DailyCheckPage() {
                     let orderAmount: number | string = '-';
                     let needsOrder = false;
                     
-                    if (item.evening_counted !== null && item.products.min_limit !== null && item.products.max_limit !== null) {
-                      if (item.evening_counted <= item.products.min_limit) {
-                        orderAmount = item.products.max_limit - item.evening_counted;
+                    if (item.evening_counted !== null && item.min_limit !== null && item.max_limit !== null) {
+                      if (item.evening_counted <= item.min_limit) {
+                        orderAmount = item.max_limit - item.evening_counted;
                         needsOrder = orderAmount > 0;
                       } else {
                         orderAmount = 0; 
@@ -179,54 +224,102 @@ export default function DailyCheckPage() {
                     }
 
                     return (
-                      <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="p-4 text-left font-medium bg-white">
-                          {item.products.name}
-                          <div className="text-xs text-gray-500 font-normal mt-1">
-                            ห้ามเกิน: {item.products.max_limit || '-'} ขั้นต่ำ: {item.products.min_limit || '-'}
+                      <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                        <td className="p-5 text-left font-semibold text-gray-800 bg-white">
+                          {item.name}
+                          <div className="text-xs text-gray-500 font-normal mt-2 flex gap-3">
+                            <span>Max: {item.max_limit || '-'}</span> <span>Min: {item.min_limit || '-'}</span>
                           </div>
                         </td>
-                        <td className="p-4 text-yellow-700 font-medium bg-yellow-50/50">{item.yesterday_balance}</td>
-                        <td className="p-4 text-yellow-700 font-medium bg-yellow-50/50">+{item.incoming}</td>
-                        <td className="p-4 text-yellow-800 font-bold text-lg bg-yellow-100/50">{totalAvailable}</td>
+                        <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">{item.yesterday_balance}</td>
                         
-                        {/* 🔴 ส่วนการแก้ไขนับได้ตอนเย็น */}
-                        <td className="p-4 bg-blue-50 text-blue-600">
-                          {editingId === item.id ? (
+                        {/* 🔴 ส่วนปุ่มแก้ไข "ยอดรับเข้า" แบบแยก */}
+                        <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">
+                          {editingIncomingId === item.id ? (
                             <div className="flex flex-col items-center gap-2">
-                              <input
-                                type="number"
+                              <input 
+                                type="number" 
                                 autoFocus
-                                className="w-20 border-2 border-blue-400 rounded p-1 text-center font-bold text-gray-800 focus:outline-none"
-                                value={editEveningCount}
-                                onChange={(e) => setEditEveningCount(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveEveningCount(item.id)}
+                                className="w-20 border-2 border-[#facc15] rounded-xl p-2 text-center font-bold text-gray-900 focus:outline-none shadow-sm" 
+                                value={editIncomingCount} 
+                                onChange={(e) => setEditIncomingCount(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveIncoming(item.id, item.yesterday_balance, item.evening_counted)} 
                               />
                               <div className="flex gap-1">
-                                <button onClick={() => handleSaveEveningCount(item.id)} className="bg-blue-600 text-white text-xs px-2 py-1 rounded hover:bg-blue-700">บันทึก</button>
-                                <button onClick={() => setEditingId(null)} className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded hover:bg-gray-300">ยกเลิก</button>
+                                <button onClick={() => handleSaveIncoming(item.id, item.yesterday_balance, item.evening_counted)} className="bg-yellow-600 text-white text-[11px] px-2 py-1 rounded-md hover:bg-yellow-700 shadow-sm font-bold">บันทึก</button>
+                                <button onClick={() => setEditingIncomingId(null)} className="bg-yellow-100 text-yellow-800 text-[11px] px-2 py-1 rounded-md hover:bg-yellow-200 shadow-sm font-bold">ยกเลิก</button>
                               </div>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center justify-center">
-                              <span className="text-2xl font-bold">{eveningCounted === '-' ? <span className="text-gray-300 text-sm font-normal">รอนับ</span> : eveningCounted}</span>
+                              <span className="text-lg">+{item.incoming}</span>
                               <button 
-                                onClick={() => {
-                                  setEditingId(item.id)
-                                  setEditEveningCount(item.evening_counted !== null ? String(item.evening_counted) : '')
+                                onClick={() => { 
+                                  setEditingIncomingId(item.id); 
+                                  setEditIncomingCount(String(item.incoming));
                                 }}
-                                className="mt-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-[10px] px-3 py-1 rounded-full transition-colors flex items-center gap-1 font-medium shadow-sm">
-                                ✏️ แก้ไข
+                                className="mt-1 bg-white border border-yellow-300 text-yellow-700 hover:bg-yellow-100 text-[11px] px-3 py-1 rounded-full transition-colors flex items-center gap-1 font-semibold shadow-sm"
+                              >
+                                ✏️ แก้ไขรับเข้า
                               </button>
                             </div>
                           )}
                         </td>
+
+                        <td className="p-5 text-yellow-950 font-bold text-xl bg-yellow-100/50">{totalAvailable}</td>
                         
-                        <td className="p-4 text-gray-600 font-medium text-lg bg-gray-50">{usedAmount}</td>
+                        {/* 🔴 ส่วนปุ่มแก้ไข "ยอดนับตอนเย็น" แบบแยก */}
+                        <td className="p-5 bg-blue-50/30 text-blue-700">
+                          {editingEveningId === item.id ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <input 
+                                type="number" 
+                                autoFocus 
+                                className="w-24 border-2 border-blue-400 rounded-xl p-2.5 text-center font-bold text-gray-900 focus:outline-none shadow-md" 
+                                value={editEveningCount} 
+                                onChange={(e) => setEditEveningCount(e.target.value)} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveEvening(item.id, item.yesterday_balance, item.incoming)} 
+                              />
+                              <div className="flex gap-2 mt-1">
+                                <button onClick={() => handleSaveEvening(item.id, item.yesterday_balance, item.incoming)} className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors font-bold">บันทึก</button>
+                                <button onClick={() => setEditingEveningId(null)} className="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg hover:bg-gray-300 shadow-sm transition-colors font-bold">ยกเลิก</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center">
+                              {item.evening_counted === null ? (
+                                <button 
+                                  onClick={() => { 
+                                    setEditingEveningId(item.id); 
+                                    setEditEveningCount('');
+                                  }}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-5 py-2.5 rounded-full transition-colors flex items-center gap-2 font-bold shadow-sm"
+                                >
+                                  ✍️ ลงยอดนับ
+                                </button>
+                              ) : (
+                                <>
+                                  <span className="text-3xl font-bold text-blue-700 mb-1">{item.evening_counted}</span>
+                                  <button 
+                                    onClick={() => { 
+                                      setEditingEveningId(item.id); 
+                                      setEditEveningCount(String(item.evening_counted));
+                                    }}
+                                    className="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 text-xs px-4 py-1.5 rounded-full transition-colors flex items-center gap-1.5 font-semibold shadow-sm"
+                                  >
+                                    ✏️ แก้ไขยอดนับ
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </td>
                         
-                        <td className={`p-4 font-bold text-lg bg-red-50/30 ${needsOrder ? 'text-red-600' : 'text-gray-400'}`}>
+                        <td className="p-5 text-gray-700 font-semibold text-xl bg-gray-50/50">{usedAmount}</td>
+                        
+                        <td className={`p-5 font-bold text-xl bg-red-50/30 border-l border-[#fecaca] ${needsOrder ? 'text-[#df2323]' : 'text-gray-400'}`}>
                           {needsOrder ? `+${orderAmount}` : (orderAmount === '-' ? '-' : orderAmount)}
-                          {needsOrder && <div className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full inline-block mt-1">ต้องสั่งของ!</div>}
+                          {needsOrder && <div className="text-[10px] bg-[#df2323] text-white px-3 py-1 rounded-full inline-block mt-2 font-bold shadow-md border border-[#c21e1e]">ต้องสั่งของ!</div>}
                         </td>
                       </tr>
                     );
@@ -237,7 +330,6 @@ export default function DailyCheckPage() {
           </div>
         </div>
 
-      </div>
     </div>
   )
 }

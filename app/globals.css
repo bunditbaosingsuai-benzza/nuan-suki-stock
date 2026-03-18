@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* 🔴 บังคับใช้พื้นหลังสีเทาอ่อนตามดีไซน์เสมอ */
+  --background: #f8f9fa;
   --foreground: #171717;
 }
 
@@ -12,14 +13,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* 🔴 เราลบ @media dark mode ตรงนี้ออกไปแล้ว เว็บจะไม่เป็นสีดำอีกต่อไป */
 
+/* 🔴 ล็อกให้ความสูงของเว็บเต็มหน้าจอเสมอ */
+html,
 body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
