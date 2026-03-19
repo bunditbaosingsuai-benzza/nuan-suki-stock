@@ -3,21 +3,38 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
+// 🔴 1. สร้าง Interface กำหนดโครงสร้างข้อมูล
+interface Product {
+  id: number;
+  name: string;
+  unit: string;
+  min_limit: number | null;
+  max_limit: number | null;
+}
+
+interface DailyCheck {
+  id: number;
+  product_id: number;
+  check_date: string;
+  yesterday_balance: number;
+  incoming: number;
+  evening_counted: number | null;
+}
+
 export default function DailyCheckPage() {
-  const [products, setProducts] = useState<any[]>([])
-  const [todayChecks, setTodayChecks] = useState<any[]>([])
-  const [yesterdayChecks, setYesterdayChecks] = useState<any[]>([])
+  // 🔴 2. นำ Interface มาใส่ใน useState
+  const [products, setProducts] = useState<Product[]>([])
+  const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
+  const [yesterdayChecks, setYesterdayChecks] = useState<DailyCheck[]>([])
   
   const [selectedProductId, setSelectedProductId] = useState('')
   const [yesterdayBalance, setYesterdayBalance] = useState('')
   const [incoming, setIncoming] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // 🔴 แยก State สำหรับแก้ไข "รับเข้า"
   const [editingIncomingId, setEditingIncomingId] = useState<number | null>(null)
   const [editIncomingCount, setEditIncomingCount] = useState<string>('') 
 
-  // 🔴 แยก State สำหรับแก้ไข "นับตอนเย็น"
   const [editingEveningId, setEditingEveningId] = useState<number | null>(null)
   const [editEveningCount, setEditEveningCount] = useState<string>('')
 
@@ -30,13 +47,13 @@ export default function DailyCheckPage() {
 
   const fetchData = async () => {
     const { data: pData } = await supabase.from('products').select('*').order('id', { ascending: true })
-    if (pData) setProducts(pData)
+    if (pData) setProducts(pData as Product[])
 
     const { data: tData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', todayForDB)
-    if (tData) setTodayChecks(tData)
+    if (tData) setTodayChecks(tData as DailyCheck[])
 
     const { data: yData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', yesterdayForDB)
-    if (yData) setYesterdayChecks(yData)
+    if (yData) setYesterdayChecks(yData as DailyCheck[])
   }
 
   useEffect(() => {
@@ -100,7 +117,6 @@ export default function DailyCheckPage() {
     }
   }
 
-  // 🔴 ฟังก์ชันบันทึกเฉพาะ "ยอดรับเข้า"
   const handleSaveIncoming = async (productId: number, currentYestBal: number, currentEvening: number | null) => {
     try {
       const { error } = await supabase
@@ -122,7 +138,6 @@ export default function DailyCheckPage() {
     }
   }
 
-  // 🔴 ฟังก์ชันบันทึกเฉพาะ "ยอดนับตอนเย็น"
   const handleSaveEvening = async (productId: number, currentYestBal: number, currentInc: number) => {
     try {
       const { error } = await supabase
@@ -233,7 +248,6 @@ export default function DailyCheckPage() {
                         </td>
                         <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">{item.yesterday_balance}</td>
                         
-                        {/* 🔴 ส่วนปุ่มแก้ไข "ยอดรับเข้า" แบบแยก */}
                         <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">
                           {editingIncomingId === item.id ? (
                             <div className="flex flex-col items-center gap-2">
@@ -268,7 +282,6 @@ export default function DailyCheckPage() {
 
                         <td className="p-5 text-yellow-950 font-bold text-xl bg-yellow-100/50">{totalAvailable}</td>
                         
-                        {/* 🔴 ส่วนปุ่มแก้ไข "ยอดนับตอนเย็น" แบบแยก */}
                         <td className="p-5 bg-blue-50/30 text-blue-700">
                           {editingEveningId === item.id ? (
                             <div className="flex flex-col items-center gap-2">

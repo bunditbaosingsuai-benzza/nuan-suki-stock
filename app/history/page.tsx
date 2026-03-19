@@ -3,20 +3,43 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
+// 🔴 1. สร้าง Interface กำหนดโครงสร้างข้อมูล
+interface ProductInfo {
+  name: string;
+  unit: string;
+}
+
+interface HistoryItem {
+  id: number;
+  product_id: number;
+  check_date: string;
+  yesterday_balance: number;
+  incoming: number;
+  evening_counted: number | null;
+  products: ProductInfo; // โครงสร้างข้อมูลเวลา Join ตาราง Supabase
+}
+
+interface MonthlySummary {
+  id: number;
+  name: string;
+  unit: string;
+  total_incoming: number;
+  total_used: number;
+  latest_balance: number;
+}
+
 export default function HistoryPage() {
-  const [historyData, setHistoryData] = useState<any[]>([])
+  // 🔴 2. นำ Interface มาใส่ใน useState
+  const [historyData, setHistoryData] = useState<HistoryItem[]>([])
   
-  // 🔴 State สำหรับจัดการโหมดแสดงผล (วัน / เดือน)
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily')
   
-  // สร้างรายการวันที่ย้อนหลัง 31 วัน และ 12 เดือน
   const [dates, setDates] = useState<Date[]>([])
   const [months, setMonths] = useState<Date[]>([])
   
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
 
-  // State สำหรับแก้ไขข้อมูล (ใช้ได้เฉพาะโหมดรายวัน)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editYest, setEditYest] = useState('')
   const [editInc, setEditInc] = useState('')
@@ -26,7 +49,6 @@ export default function HistoryPage() {
   const today = new Date()
 
   useEffect(() => {
-    // สร้าง array 31 วันย้อนหลัง
     const tempDates = []
     for (let i = 0; i < 31; i++) {
       const d = new Date()
@@ -36,11 +58,10 @@ export default function HistoryPage() {
     setDates(tempDates)
     setSelectedDate(tempDates[0].toLocaleDateString('en-CA'))
 
-    // สร้าง array 12 เดือนย้อนหลัง
     const tempMonths = []
     for (let i = 0; i < 12; i++) {
       const d = new Date()
-      d.setDate(1) // ตั้งเป็นวันที่ 1 ป้องกันบั๊กข้ามเดือน
+      d.setDate(1) 
       d.setMonth(today.getMonth() - i)
       tempMonths.push(d)
     }
@@ -55,10 +76,9 @@ export default function HistoryPage() {
         .select('*, products(name, unit)')
         .eq('check_date', selectedDate)
         .order('id', { ascending: true })
-      if (data) setHistoryData(data)
+      if (data) setHistoryData(data as HistoryItem[])
     } 
     else if (viewMode === 'monthly' && selectedMonth) {
-      // ค้นหาตั้งแต่วันแรก ถึงวันสุดท้ายของเดือนที่เลือก
       const [year, month] = selectedMonth.split('-')
       const start = `${selectedMonth}-01`
       const end = new Date(parseInt(year), parseInt(month), 0).toLocaleDateString('en-CA')
@@ -68,8 +88,8 @@ export default function HistoryPage() {
         .select('*, products(name, unit)')
         .gte('check_date', start)
         .lte('check_date', end)
-        .order('check_date', { ascending: true }) // เรียงตามวันที่เพื่อหายอดล่าสุด
-      if (data) setHistoryData(data)
+        .order('check_date', { ascending: true }) 
+      if (data) setHistoryData(data as HistoryItem[])
     }
   }
 
@@ -98,17 +118,17 @@ export default function HistoryPage() {
     }
   }
 
-  // 🔴 ฟังก์ชันคำนวณสรุปยอดรายเดือน
-  const getMonthlySummary = () => {
-    const summaryMap: Record<string, any> = {}
+  // 🔴 ฟังก์ชันคำนวณสรุปยอดรายเดือนแบบมี Type ป้องกัน Error
+  const getMonthlySummary = (): MonthlySummary[] => {
+    const summaryMap: Record<number, MonthlySummary> = {}
     
     historyData.forEach(item => {
       const pid = item.product_id
       if (!summaryMap[pid]) {
         summaryMap[pid] = {
           id: pid,
-          name: item.products.name,
-          unit: item.products.unit,
+          name: item.products?.name || 'ไม่ระบุ',
+          unit: item.products?.unit || '-',
           total_incoming: 0,
           total_used: 0,
           latest_balance: 0
@@ -131,7 +151,6 @@ export default function HistoryPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto relative">
       
-      {/* ส่วนหัว และ ปุ่ม Toggle โหมด (ตามดีไซน์) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
           <h1 className="text-3xl font-bold text-[#df2323]">ประวัติการทำรายการ</h1>
@@ -160,7 +179,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* เลือกวันที่ หรือ เลือกเดือน */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
         <div className="flex items-center gap-2 mb-4 text-gray-700 font-bold">
           <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,7 +189,6 @@ export default function HistoryPage() {
         
         <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-3">
           {viewMode === 'daily' ? (
-            /* 🔴 โชว์ปุ่ม 31 วัน */
             dates.map((d, idx) => {
               const dateStr = d.toLocaleDateString('en-CA')
               const isSelected = selectedDate === dateStr
@@ -186,7 +203,6 @@ export default function HistoryPage() {
               )
             })
           ) : (
-            /* 🔴 โชว์ปุ่ม 12 เดือน */
             months.map((d, idx) => {
               const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
               const isSelected = selectedMonth === monthStr
@@ -204,7 +220,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* ตารางข้อมูล */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-gray-50 p-4 px-6 border-b border-gray-200 flex justify-between items-center">
           <div className="font-bold text-gray-700 flex items-center gap-2">
@@ -220,9 +235,6 @@ export default function HistoryPage() {
 
         <div className="overflow-x-auto">
           {viewMode === 'daily' ? (
-            /* ======================================= */
-            /* 🔴 ตารางแบบรายวัน (แก้ข้อมูลได้) */
-            /* ======================================= */
             <table className="w-full text-center border-collapse">
               <thead>
                 <tr className="text-sm border-b border-gray-200 bg-white">
@@ -246,7 +258,7 @@ export default function HistoryPage() {
 
                     return (
                       <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="p-4 text-left font-bold text-gray-800">{item.products.name}</td>
+                        <td className="p-4 text-left font-bold text-gray-800">{item.products?.name}</td>
                         {isEditing ? (
                           <>
                             <td className="p-2"><input type="number" className="w-20 border-2 border-yellow-400 rounded-lg p-2 text-center font-bold" value={editYest} onChange={e => setEditYest(e.target.value)} /></td>
@@ -283,9 +295,6 @@ export default function HistoryPage() {
               </tbody>
             </table>
           ) : (
-            /* ======================================= */
-            /* 🔴 ตารางแบบสรุปรายเดือน (โชว์ยอดสรุป) */
-            /* ======================================= */
             <table className="w-full text-center border-collapse">
               <thead>
                 <tr className="text-sm border-b border-gray-200 bg-white">
@@ -314,7 +323,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* Pop-up แจ้งเตือนสำเร็จ */}
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center">

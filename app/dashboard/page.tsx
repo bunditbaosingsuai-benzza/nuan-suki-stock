@@ -3,9 +3,44 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
+// 🔴 1. สร้างแม่พิมพ์ข้อมูล (Interface) เพื่อแทนที่การใช้ any
+interface Product {
+  id: number;
+  name: string;
+  unit: string;
+  min_limit: number | null;
+  max_limit: number | null;
+  categories?: { name: string };
+}
+
+interface DailyCheck {
+  id: number;
+  product_id: number;
+  check_date: string;
+  yesterday_balance: number;
+  incoming: number;
+  evening_counted: number | null;
+}
+
+interface OrderItem {
+  name: string;
+  category: string | undefined;
+  currentStock: number;
+  unit: string;
+  orderAmount: number;
+}
+
+interface ReceivedItem {
+  name: string;
+  category: string | undefined;
+  incoming: number;
+  unit: string;
+}
+
 export default function DashboardPage() {
-  const [products, setProducts] = useState<any[]>([])
-  const [dailyChecks, setDailyChecks] = useState<any[]>([])
+  // 🔴 2. ใส่ Type ให้ useState แทน <any[]>
+  const [products, setProducts] = useState<Product[]>([])
+  const [dailyChecks, setDailyChecks] = useState<DailyCheck[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const today = new Date()
@@ -13,13 +48,11 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     setIsLoading(true)
-    // ดึงสินค้าทั้งหมด
     const { data: pData } = await supabase.from('products').select('*, categories(name)')
-    if (pData) setProducts(pData)
+    if (pData) setProducts(pData as unknown as Product[])
 
-    // ดึงรายการเช็คของวันนี้
     const { data: dData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', todayForDB)
-    if (dData) setDailyChecks(dData)
+    if (dData) setDailyChecks(dData as DailyCheck[])
     
     setIsLoading(false)
   }
@@ -28,10 +61,8 @@ export default function DashboardPage() {
     fetchData()
   }, [])
 
-  // === ระบบประมวลผลข้อมูลสำหรับ Dashboard ===
-  
-  // 1. ค้นหารายการที่ "ต้องสั่งเพิ่ม" (นับแล้ว และเหลือน้อยกว่าหรือเท่ากับขั้นต่ำ)
-  const itemsToOrder = products.reduce((acc, product) => {
+  // 🔴 3. ใส่ Type ให้ reduce เพื่อให้ item รู้จักตัวเอง
+  const itemsToOrder = products.reduce<OrderItem[]>((acc, product) => {
     const checkRecord = dailyChecks.find(c => c.product_id === product.id)
     if (checkRecord && checkRecord.evening_counted !== null && product.min_limit !== null && product.max_limit !== null) {
       if (checkRecord.evening_counted <= product.min_limit) {
@@ -48,10 +79,9 @@ export default function DashboardPage() {
       }
     }
     return acc
-  }, [] as any[])
+  }, [])
 
-  // 2. ค้นหารายการ "ของเข้าวันนี้" (รับเข้า > 0)
-  const itemsReceivedToday = products.reduce((acc, product) => {
+  const itemsReceivedToday = products.reduce<ReceivedItem[]>((acc, product) => {
     const checkRecord = dailyChecks.find(c => c.product_id === product.id)
     if (checkRecord && checkRecord.incoming > 0) {
       acc.push({
@@ -62,9 +92,8 @@ export default function DashboardPage() {
       })
     }
     return acc
-  }, [] as any[])
+  }, [])
 
-  // 3. คำนวณความคืบหน้าการเช็คสต๊อก
   const totalProductsCount = products.length
   const checkedProductsCount = dailyChecks.filter(c => c.evening_counted !== null).length
   const progressPercent = totalProductsCount > 0 ? Math.round((checkedProductsCount / totalProductsCount) * 100) : 0
@@ -86,7 +115,6 @@ export default function DashboardPage() {
 
       {/* 3 การ์ดสรุปยอดด้านบน */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* การ์ด 1: ความคืบหน้า */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10 text-4xl">📋</div>
           <div>
@@ -100,7 +128,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* การ์ด 2: ของเข้าวันนี้ */}
         <div className="bg-[#ecfdf5] rounded-2xl p-6 border border-[#a7f3d0] shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-20 text-4xl">📦</div>
           <div>
@@ -112,7 +139,6 @@ export default function DashboardPage() {
           <p className="text-sm text-[#059669] mt-2 font-medium">อัปเดตยอดเข้าสต๊อกเรียบร้อยแล้ว</p>
         </div>
 
-        {/* การ์ด 3: ต้องสั่งเพิ่ม */}
         <div className="bg-[#fef2f2] rounded-2xl p-6 border border-[#fecaca] shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-20 text-4xl">⚠️</div>
           <div>

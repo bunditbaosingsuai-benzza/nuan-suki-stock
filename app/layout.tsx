@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import { SidebarProvider } from './context/SidebarContext'
 
-const inter = Inter({ subsets: ['latin', 'thai'] })
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'นวลสุกี้ - ระบบจัดการสต๊อก',
