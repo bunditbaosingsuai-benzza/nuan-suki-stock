@@ -161,23 +161,23 @@ export default function HistoryPage() {
   }, {} as Record<string, MonthlySummary[]>);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          <h1 className="text-3xl font-bold text-[#df2323]">ประวัติการทำรายการ</h1>
-          <div className="bg-white px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">ประวัติการทำรายการ</h1>
+          <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">
             {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
           </div>
         </div>
 
-        <div className="flex bg-gray-200/80 rounded-full p-1 shadow-inner">
-          <button onClick={() => setViewMode('daily')} className={`px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'daily' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 ดูตามวัน</button>
-          <button onClick={() => setViewMode('monthly')} className={`px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'monthly' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>🗓️ สรุปรายเดือน</button>
+        <div className="flex bg-gray-200/80 rounded-full p-1 shadow-inner w-fit">
+          <button onClick={() => setViewMode('daily')} className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'daily' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 ดูตามวัน</button>
+          <button onClick={() => setViewMode('monthly')} className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'monthly' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>🗓️ สรุปรายเดือน</button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
         <div className="flex gap-3 overflow-x-auto custom-scrollbar pb-3">
           {viewMode === 'daily' ? (
             dates.map((d, idx) => {

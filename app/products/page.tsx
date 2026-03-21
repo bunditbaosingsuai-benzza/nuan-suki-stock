@@ -191,54 +191,54 @@ export default function ProductsPage() {
   }, {} as Record<string, Product[]>);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
       
-      <div className="flex items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-[#df2323]">รายการสินค้า</h1>
-        <div className="bg-white px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">รายการสินค้า</h1>
+        <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">
           {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-8 mb-8">
         <h2 className="text-lg font-bold text-gray-800 mb-6">เพิ่มสินค้าใหม่</h2>
         
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-6">
-          <div className="flex-1 min-w-[200px]">
+        <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row flex-wrap items-stretch lg:items-end gap-4 lg:gap-6">
+          <div className="flex-1 min-w-full sm:min-w-[200px]">
             <label className="block text-sm font-bold text-gray-700 mb-2">ชื่อสินค้า</label>
             <input type="text" required value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] focus:ring-1 focus:ring-[#df2323] transition-colors" 
+              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] focus:ring-1 focus:ring-[#df2323] transition-colors text-sm sm:text-base" 
               placeholder="เช่น น้ำมันพืช" />
           </div>
 
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-bold text-gray-700 mb-2">หมวดหมู่</label>
             <input type="text" required value={categoryName} onChange={(e) => setCategoryName(e.target.value)}
-              className="w-full border border-[#df2323] rounded-xl p-3 focus:outline-none focus:ring-1 focus:ring-[#df2323] transition-colors" 
+              className="w-full border border-[#df2323] rounded-xl p-3 focus:outline-none focus:ring-1 focus:ring-[#df2323] transition-colors text-sm sm:text-base" 
               placeholder="เช่น เครื่องปรุง" />
           </div>
 
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-bold text-gray-700 mb-2">หน่วยนับ</label>
             <input type="text" required value={unit} onChange={(e) => setUnit(e.target.value)}
-              className="w-full border border-[#df2323] rounded-xl p-3 focus:outline-none focus:ring-1 focus:ring-[#df2323] transition-colors" 
+              className="w-full border border-[#df2323] rounded-xl p-3 focus:outline-none focus:ring-1 focus:ring-[#df2323] transition-colors text-sm sm:text-base" 
               placeholder="เช่น แกลลอน" />
           </div>
 
-          <div className="w-32">
+          <div className="w-full sm:w-32">
             <label className="block text-sm font-bold text-gray-700 mb-2">ห้ามเกิน</label>
             <input type="number" step="any" value={maxLimit} onChange={(e) => setMaxLimit(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors" placeholder="15" />
+              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors text-sm sm:text-base" placeholder="15" />
           </div>
 
-          <div className="w-32">
+          <div className="w-full sm:w-32">
             <label className="block text-sm font-bold text-gray-700 mb-2">ขั้นต่ำ</label>
             <input type="number" step="any" required value={minLimit} onChange={(e) => setMinLimit(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors" placeholder="5" />
+              className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors text-sm sm:text-base" placeholder="5" />
           </div>
 
           <button type="submit" disabled={isSubmitting}
-            className="bg-[#059669] hover:bg-[#047857] text-white px-8 py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[52px]">
+            className="bg-[#059669] hover:bg-[#047857] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[52px] w-full sm:w-auto">
             {isSubmitting ? 'กำลังบันทึก...' : '+ เพิ่มลงตาราง'}
           </button>
         </form>
