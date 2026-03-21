@@ -140,12 +140,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       
       {/* ส่วนหัว */}
-      <div className="flex items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-[#df2323]">แดชบอร์ด</h1>
-        <div className="bg-white px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">แดชบอร์ด</h1>
+        <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">
           {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
       </div>
