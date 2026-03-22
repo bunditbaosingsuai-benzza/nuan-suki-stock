@@ -193,40 +193,40 @@ export default function DailyCheckPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         
-        <div className="flex items-center gap-4 mb-8">
-          <h1 className="text-3xl font-bold text-[#df2323]">เช็คสต๊อกรายวัน</h1>
-          <div className="bg-white px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">เช็คสต๊อกรายวัน</h1>
+          <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">
             {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
           </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-          <div className="bg-[#facc15] p-4 px-8 text-white font-bold flex items-center gap-3 border-b border-[#eab308]">
-            <span className="text-2xl">☀️</span> บันทึกยอดตอนเช้า (เปิดร้าน / รับของเข้า)
+          <div className="bg-[#facc15] p-3 sm:p-4 px-4 sm:px-8 text-white font-bold flex items-center gap-2 sm:gap-3 border-b border-[#eab308]">
+            <span className="text-xl sm:text-2xl">☀️</span> <span className="text-sm sm:text-base">บันทึกยอดตอนเช้า (เปิดร้าน / รับของเข้า)</span>
           </div>
-          <form onSubmit={handleMorningSubmit} className="p-8 flex flex-wrap items-end gap-6">
-            <div className="flex-1 min-w-[200px]">
+          <form onSubmit={handleMorningSubmit} className="p-4 sm:p-8 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-4 sm:gap-6">
+            <div className="flex-1 min-w-full sm:min-w-[200px]">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">เลือกสินค้า</label>
               <select required value={selectedProductId} onChange={handleSelectProduct}
-                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] bg-white shadow-inner transition-colors">
+                className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] bg-white shadow-inner transition-colors text-sm sm:text-base">
                 <option value="" disabled>-- เลือกลงยอดรับเข้า --</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
               </select>
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               {/* 🔴 เปลี่ยนคำอธิบายเป็น "ยอดเหลือล่าสุด" */}
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">ยอดเหลือล่าสุด</label>
               <input type="number" step="any" value={yesterdayBalance} onChange={(e) => setYesterdayBalance(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors bg-gray-50" placeholder="0" />
+                className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors bg-gray-50 text-sm sm:text-base" placeholder="0" />
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">ของเข้าวันนี้</label>
               <input type="number" step="any" required value={incoming} onChange={(e) => setIncoming(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors" placeholder="รับมา" />
+                className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors text-sm sm:text-base" placeholder="รับมา" />
             </div>
-            <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[58px]">
+            <button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[50px] sm:h-[58px] w-full sm:w-auto">
               {isSubmitting ? 'กำลังบันทึก...' : '+ เพิ่มลงตารางวันนี้'}
             </button>
           </form>
