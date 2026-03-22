@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSidebar } from '../context/SidebarContext'
 import { supabase } from '../../lib/supabase'
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { isOpen, setIsOpen } = useSidebar() // 🔴 ดึง State มาใช้
+  const router = useRouter() // 🔴 เรียกใช้งาน useRouter
+  const { isOpen, setIsOpen } = useSidebar()
 
   const menuItems = [
     { name: 'แดชบอร์ด', href: '/dashboard', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg> },
@@ -18,7 +19,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* 🔴 พื้นหลังสีดำเบลอๆ เวลาเปิดเมนูในมือถือ (กดตรงนี้เพื่อปิดได้) */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm transition-opacity" 
@@ -26,10 +26,8 @@ export default function Sidebar() {
         />
       )}
 
-      {/* ตัวเมนู Sidebar */}
       <div className={`fixed inset-y-0 left-0 w-64 bg-white h-full border-r border-gray-200 flex flex-col flex-shrink-0 z-50 shadow-2xl md:shadow-sm transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         
-        {/* โลโก้ และ ปุ่มกากบาท (เฉพาะมือถือ) */}
         <div className="p-6 md:p-8 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#df2323] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm">นวล</div>
@@ -40,13 +38,12 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* เมนู */}
         <nav className="flex-1 px-4 py-2 flex flex-col gap-1.5 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link key={item.href} href={item.href}
-                onClick={() => setIsOpen(false)} // 🔴 กดเปลี่ยนหน้าแล้วปิดเมนูมือถืออัตโนมัติ
+                onClick={() => setIsOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all text-sm font-semibold ${
                   isActive ? 'bg-[#fef2f2] text-[#df2323]' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                 }`}
@@ -57,15 +54,18 @@ export default function Sidebar() {
             )
           })}
           <button 
-    onClick={async () => {
-      await supabase.auth.signOut()
-      // ไม่ต้องเขียน router.push เพราะ AuthContext จะเตะเราออกให้อัตโนมัติ
-    }}
-    className="flex items-center gap-3 px-4 py-3.5 mt-auto rounded-xl transition-all text-sm font-bold text-red-600 hover:bg-red-50 mt-10"
-  >
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-    ออกจากระบบ
-  </button>
+            onClick={async () => {
+              await supabase.auth.signOut();
+              localStorage.clear();
+              sessionStorage.clear();
+              // 🔴 เปลี่ยนจาก href เป็น replace เพื่อทำลายประวัติการเข้าเว็บ (History)
+              window.location.replace('/login'); 
+            }}
+            className="flex items-center gap-3 px-4 py-3.5 mt-auto rounded-xl transition-all text-sm font-bold text-red-600 hover:bg-red-50 mt-10"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            ออกจากระบบ
+          </button>
         </nav>
       </div>
     </>
