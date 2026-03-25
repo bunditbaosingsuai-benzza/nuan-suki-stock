@@ -101,7 +101,8 @@ export default function DailyCheckPage() {
   const handleScroll = () => {
     if (!tableContainerRef.current) return;
     const container = tableContainerRef.current;
-    const scrollPosition = container.scrollTop + 60; 
+    // 🔴 ปรับระยะอ่านค่าให้พอดีกับหัวตาราง
+    const scrollPosition = container.scrollTop + 80; 
 
     let currentActive = '';
     for (const cat of categoriesList) {
@@ -119,8 +120,9 @@ export default function DailyCheckPage() {
   const scrollToCategory = (cat: string) => {
     const el = categoryRefs.current[cat];
     if (el && tableContainerRef.current) {
+      // 🔴 ปรับระยะหยุดให้ต่ำลง ไม่ให้มุดใต้หัวตาราง (หักลบ 75px)
       tableContainerRef.current.scrollTo({
-        top: el.offsetTop - 50, 
+        top: Math.max(0, el.offsetTop - 75), 
         behavior: 'smooth'
       });
       setActiveCategory(cat);
@@ -239,15 +241,17 @@ export default function DailyCheckPage() {
             className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30 scroll-smooth"
           >
             <table className="w-full text-center border-collapse">
-              <thead className="sticky top-0 z-20 shadow-sm">
-                <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-4 text-left font-bold text-gray-700 sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า (หน่วย)</th>
-                  <th className="p-4 bg-yellow-50 text-[#854d0e] border-x border-yellow-100">ยอดเหลือล่าสุด</th>
-                  <th className="p-4 bg-yellow-50 text-[#854d0e] border-r border-yellow-100">รับเข้าวันนี้</th>
-                  <th className="p-4 bg-yellow-100 text-[#854d0e] font-bold border-r border-yellow-200">รวมมีของ</th>
-                  <th className="p-4 bg-blue-50 text-blue-700 font-bold border-r border-blue-100 w-48">นับได้ตอนเย็น</th>
-                  <th className="p-4 bg-white text-gray-600 border-r border-gray-200">ถูกใช้ไป</th>
-                  <th className="p-4 bg-red-50 text-[#df2323] font-bold border-l border-red-100">ต้องสั่งเพิ่ม</th>
+              {/* 🔴 เพิ่ม bg-white และรับประกัน z-index */}
+              <thead className="sticky top-0 z-30 bg-white shadow-sm">
+                <tr className="text-sm border-b border-gray-200">
+                  {/* 🔴 เพิ่ม whitespace-nowrap ห้ามตัดคำในมือถือเด็ดขาด */}
+                  <th className="p-4 text-left font-bold text-gray-700 sticky left-0 top-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px] whitespace-nowrap">รายการสินค้า (หน่วย)</th>
+                  <th className="p-4 bg-yellow-50 text-[#854d0e] border-x border-yellow-100 whitespace-nowrap">ยอดเหลือล่าสุด</th>
+                  <th className="p-4 bg-yellow-50 text-[#854d0e] border-r border-yellow-100 whitespace-nowrap">รับเข้าวันนี้</th>
+                  <th className="p-4 bg-yellow-100 text-[#854d0e] font-bold border-r border-yellow-200 whitespace-nowrap">รวมมีของ</th>
+                  <th className="p-4 bg-blue-50 text-blue-700 font-bold border-r border-blue-100 w-48 whitespace-nowrap">นับได้ตอนเย็น</th>
+                  <th className="p-4 bg-white text-gray-600 border-r border-gray-200 whitespace-nowrap">ถูกใช้ไป</th>
+                  <th className="p-4 bg-red-50 text-[#df2323] font-bold border-l border-red-100 whitespace-nowrap">ต้องสั่งเพิ่ม</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -258,7 +262,8 @@ export default function DailyCheckPage() {
                         ref={(el) => { categoryRefs.current[category] = el; }} 
                         className="bg-gray-100 border-y border-gray-200"
                       >
-                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-10 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        {/* 🔴 เพิ่ม whitespace-nowrap ให้แถบหมวดหมู่ */}
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
                           📂 {category}
                         </td>
                         <td colSpan={6} className="bg-gray-100"></td>
@@ -278,9 +283,9 @@ export default function DailyCheckPage() {
 
                         return (
                           <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors group">
-                            <td className="p-4 text-left font-semibold text-gray-800 bg-white group-hover:bg-gray-50/80 sticky left-0 z-10 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
-                              {item.name}
-                              <div className="text-xs text-gray-500 font-normal mt-1.5 flex gap-3"><span>Max: {item.max_limit !== null ? Number(item.max_limit.toFixed(1)) : '-'}</span><span>Min: {item.min_limit !== null ? Number(item.min_limit.toFixed(1)) : '-'}</span></div>
+                            <td className="p-4 text-left font-semibold text-gray-800 bg-white group-hover:bg-gray-50/80 sticky left-0 z-10 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors whitespace-nowrap">
+                              <div className="text-[15px]">{item.name}</div>
+                              <div className="text-[11px] text-gray-500 font-normal mt-1.5 flex gap-2"><span>Max: {item.max_limit !== null ? Number(item.max_limit.toFixed(1)) : '-'}</span><span>Min: {item.min_limit !== null ? Number(item.min_limit.toFixed(1)) : '-'}</span></div>
                             </td>
                             <td className="p-4 text-yellow-900 font-semibold bg-yellow-50/30">{Number(item.yesterday_balance.toFixed(1))}</td>
                             <td className="p-4 text-yellow-900 font-semibold bg-yellow-50/30">
@@ -365,7 +370,6 @@ export default function DailyCheckPage() {
             </div>
           </div>
         )}
-
     </div>
   )
 }
