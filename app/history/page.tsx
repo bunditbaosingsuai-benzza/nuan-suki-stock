@@ -68,11 +68,7 @@ export default function HistoryPage() {
 
   const fetchHistory = async () => {
     if (viewMode === 'daily' && selectedDate) {
-      const { data } = await supabase
-        .from('daily_stock_checks')
-        .select('*, products(name, unit, categories(name))') 
-        .eq('check_date', selectedDate)
-        .order('id', { ascending: true })
+      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, categories(name))').eq('check_date', selectedDate).order('id', { ascending: true })
       if (data) setHistoryData(data as HistoryItem[])
     } 
     else if (viewMode === 'monthly' && selectedMonth) {
@@ -80,59 +76,30 @@ export default function HistoryPage() {
       const start = `${selectedMonth}-01`
       const end = new Date(parseInt(year), parseInt(month), 0).toLocaleDateString('en-CA')
       
-      const { data } = await supabase
-        .from('daily_stock_checks')
-        .select('*, products(name, unit, categories(name))') 
-        .gte('check_date', start)
-        .lte('check_date', end)
-        .order('check_date', { ascending: true }) 
+      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, categories(name))').gte('check_date', start).lte('check_date', end).order('check_date', { ascending: true }) 
       if (data) setHistoryData(data as HistoryItem[])
     }
   }
 
-  useEffect(() => {
-    fetchHistory()
-  }, [viewMode, selectedDate, selectedMonth])
+  useEffect(() => { fetchHistory() }, [viewMode, selectedDate, selectedMonth])
 
   const handleSaveEdit = async (id: number) => {
     try {
-      const { error } = await supabase
-        .from('daily_stock_checks')
-        .update({
-          yesterday_balance: editYest === '' ? 0 : parseFloat(editYest),
-          incoming: editInc === '' ? 0 : parseFloat(editInc),
-          evening_counted: editEve === '' ? null : parseFloat(editEve)
-        })
-        .eq('id', id)
-
+      const { error } = await supabase.from('daily_stock_checks').update({ yesterday_balance: editYest === '' ? 0 : parseFloat(editYest), incoming: editInc === '' ? 0 : parseFloat(editInc), evening_counted: editEve === '' ? null : parseFloat(editEve) }).eq('id', id)
       if (error) throw error
-
       setEditingId(null)
       fetchHistory()
       setSuccessModal(true)
-    } catch (error: any) {
-      alert('❌ อัปเดตไม่สำเร็จ: ' + error.message)
-    }
+    } catch (error: any) { alert('❌ อัปเดตไม่สำเร็จ: ' + error.message) }
   }
 
   const getMonthlySummary = (): MonthlySummary[] => {
     const summaryMap: Record<number, MonthlySummary> = {}
-    
     historyData.forEach(item => {
       const pid = item.product_id
       if (!summaryMap[pid]) {
-        summaryMap[pid] = {
-          id: pid,
-          name: item.products?.name || 'ไม่ระบุ',
-          unit: item.products?.unit || '-',
-          category: item.products?.categories?.name || 'ไม่มีหมวดหมู่',
-          total_incoming: 0,
-          total_used: 0,
-          latest_balance: 0
-        }
+        summaryMap[pid] = { id: pid, name: item.products?.name || 'ไม่ระบุ', unit: item.products?.unit || '-', category: item.products?.categories?.name || 'ไม่มีหมวดหมู่', total_incoming: 0, total_used: 0, latest_balance: 0 }
       }
-      
-      // 🔴 1. ปัดเศษทศนิยม 1 ตำแหน่งสำหรับยอดรวมรายเดือน
       const totalAvailable = Number((item.yesterday_balance + item.incoming).toFixed(1));
       const used = item.evening_counted !== null ? Number((totalAvailable - item.evening_counted).toFixed(1)) : 0;
       
@@ -140,37 +107,20 @@ export default function HistoryPage() {
       summaryMap[pid].total_used = Number((summaryMap[pid].total_used + used).toFixed(1));
       summaryMap[pid].latest_balance = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : summaryMap[pid].latest_balance;
     })
-
     return Object.values(summaryMap)
   }
 
   const monthlySummaryData = getMonthlySummary()
-
-  const groupedDailyHistory = historyData.reduce((acc, item) => {
-    const cat = item.products?.categories?.name || 'ไม่มีหมวดหมู่';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {} as Record<string, HistoryItem[]>);
-
-  const groupedMonthlySummary = monthlySummaryData.reduce((acc, item) => {
-    const cat = item.category;
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {} as Record<string, MonthlySummary[]>);
+  const groupedDailyHistory = historyData.reduce((acc, item) => { const cat = item.products?.categories?.name || 'ไม่มีหมวดหมู่'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); return acc; }, {} as Record<string, HistoryItem[]>);
+  const groupedMonthlySummary = monthlySummaryData.reduce((acc, item) => { const cat = item.category; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); return acc; }, {} as Record<string, MonthlySummary[]>);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
-      
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">ประวัติการทำรายการ</h1>
-          <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">
-            {today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-          </div>
+          <div className="bg-white px-4 sm:px-5 py-2 rounded-full border border-gray-200 text-sm font-semibold text-gray-700 shadow-sm w-fit">{today.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
         </div>
-
         <div className="flex bg-gray-200/80 rounded-full p-1 shadow-inner w-fit">
           <button onClick={() => setViewMode('daily')} className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'daily' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 ดูตามวัน</button>
           <button onClick={() => setViewMode('monthly')} className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${viewMode === 'monthly' ? 'bg-white text-[#df2323] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>🗓️ สรุปรายเดือน</button>
@@ -182,55 +132,52 @@ export default function HistoryPage() {
           {viewMode === 'daily' ? (
             dates.map((d, idx) => {
               const dateStr = d.toLocaleDateString('en-CA')
-              return (
-                <button key={idx} onClick={() => setSelectedDate(dateStr)} className={`flex-shrink-0 px-5 py-2.5 rounded-xl border font-semibold transition-all ${selectedDate === dateStr ? 'border-[#df2323] text-[#df2323] bg-[#fef2f2] shadow-sm' : 'border-gray-200 text-gray-500'}`}>{d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</button>
-              )
+              return <button key={idx} onClick={() => setSelectedDate(dateStr)} className={`flex-shrink-0 px-5 py-2.5 rounded-xl border font-semibold transition-all ${selectedDate === dateStr ? 'border-[#df2323] text-[#df2323] bg-[#fef2f2] shadow-sm' : 'border-gray-200 text-gray-500'}`}>{d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</button>
             })
           ) : (
             months.map((d, idx) => {
               const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-              return (
-                <button key={idx} onClick={() => setSelectedMonth(monthStr)} className={`flex-shrink-0 px-6 py-2.5 rounded-xl border font-bold transition-all ${selectedMonth === monthStr ? 'border-[#df2323] text-[#df2323] bg-[#fef2f2] shadow-sm' : 'border-gray-200 text-gray-500'}`}>{d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}</button>
-              )
+              return <button key={idx} onClick={() => setSelectedMonth(monthStr)} className={`flex-shrink-0 px-6 py-2.5 rounded-xl border font-bold transition-all ${selectedMonth === monthStr ? 'border-[#df2323] text-[#df2323] bg-[#fef2f2] shadow-sm' : 'border-gray-200 text-gray-500'}`}>{d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}</button>
             })
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* ========================================================= */}
+      {/* 🔴 ตารางประวัติ (เพิ่มล็อกหัวตาราง & ล็อกคอลัมน์ชื่อ) */}
+      {/* ========================================================= */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[70vh] min-h-[500px]">
+        <div className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30">
           {viewMode === 'daily' ? (
             <table className="w-full text-center border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-4 font-bold text-gray-700 text-left">รายการสินค้า (หน่วย)</th>
-                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/50">เหลือเมื่อวาน</th>
-                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/50">รับเข้า</th>
-                  <th className="p-4 font-bold text-yellow-800 bg-yellow-100/50">รวมมีของ</th>
-                  <th className="p-4 font-bold text-blue-700 bg-blue-50/50">นับได้ตอนเย็น</th>
-                  <th className="p-4 font-bold text-gray-700">ถูกใช้ไป</th>
-                  <th className="p-4 font-bold text-[#df2323]">จัดการ</th>
+                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า (หน่วย)</th>
+                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">เหลือเมื่อวาน</th>
+                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">รับเข้า</th>
+                  <th className="p-4 font-bold text-yellow-800 bg-yellow-100/90">รวมมีของ</th>
+                  <th className="p-4 font-bold text-blue-700 bg-blue-50/90">นับได้ตอนเย็น</th>
+                  <th className="p-4 font-bold text-gray-700 bg-white">ถูกใช้ไป</th>
+                  <th className="p-4 font-bold text-[#df2323] bg-white">จัดการ</th>
                 </tr>
               </thead>
-              <tbody>
-                {historyData.length === 0 ? (
-                  <tr><td colSpan={7} className="p-12 text-gray-400">ไม่มีข้อมูลบันทึกในวันที่เลือก</td></tr>
-                ) : (
+              <tbody className="bg-white">
+                {historyData.length === 0 ? (<tr><td colSpan={7} className="p-12 text-gray-400">ไม่มีข้อมูลบันทึกในวันที่เลือก</td></tr>) : (
                   Object.entries(groupedDailyHistory).map(([category, items]) => (
                     <React.Fragment key={category}>
                       <tr className="bg-gray-100 border-y border-gray-200">
-                        <td colSpan={7} className="p-3 pl-6 text-left font-bold text-gray-800 text-sm">📂 {category}</td>
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">📂 {category}</td>
+                        <td colSpan={6} className="bg-gray-100"></td>
                       </tr>
                       {items.map((item) => {
-                        // 🔴 2. ปัดเศษทศนิยม 1 ตำแหน่งสำหรับประวัติรายวัน
                         const total = Number((item.yesterday_balance + item.incoming).toFixed(1));
                         const eveningCounted = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-';
                         const used = item.evening_counted !== null ? Number((total - item.evening_counted).toFixed(1)) : '-';
                         const isEditing = editingId === item.id
 
                         return (
-                          <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                            <td className="p-4 text-left font-bold text-gray-800">{item.products?.name}</td>
+                          <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                            <td className="p-4 text-left font-bold text-gray-800 sticky left-0 z-20 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">{item.products?.name}</td>
                             {isEditing ? (
                               <>
                                 <td className="p-2"><input type="number" step="any" className="w-20 border-2 border-yellow-400 rounded-lg p-2 text-center font-bold" value={editYest} onChange={e => setEditYest(e.target.value)} /></td>
@@ -267,26 +214,25 @@ export default function HistoryPage() {
             </table>
           ) : (
             <table className="w-full text-center border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-5 font-bold text-gray-700 text-left">รายการสินค้า (หน่วย)</th>
-                  <th className="p-5 font-bold text-[#059669] bg-green-50/50">รับเข้าทั้งหมด (เดือนนี้)</th>
-                  <th className="p-5 font-bold text-[#df2323] bg-red-50/50">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
-                  <th className="p-5 font-bold text-[#2563eb] bg-blue-50/50">ยอดคงเหลือล่าสุด</th>
+                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า (หน่วย)</th>
+                  <th className="p-5 font-bold text-[#059669] bg-green-50/90">รับเข้าทั้งหมด (เดือนนี้)</th>
+                  <th className="p-5 font-bold text-[#df2323] bg-red-50/90">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
+                  <th className="p-5 font-bold text-[#2563eb] bg-blue-50/90">ยอดคงเหลือล่าสุด</th>
                 </tr>
               </thead>
-              <tbody>
-                {monthlySummaryData.length === 0 ? (
-                  <tr><td colSpan={4} className="p-12 text-gray-400">ไม่มีความเคลื่อนไหวสต๊อกในเดือนที่เลือก</td></tr>
-                ) : (
+              <tbody className="bg-white">
+                {monthlySummaryData.length === 0 ? (<tr><td colSpan={4} className="p-12 text-gray-400">ไม่มีความเคลื่อนไหวสต๊อกในเดือนที่เลือก</td></tr>) : (
                   Object.entries(groupedMonthlySummary).map(([category, items]) => (
                     <React.Fragment key={category}>
                       <tr className="bg-gray-100 border-y border-gray-200">
-                        <td colSpan={4} className="p-3 pl-6 text-left font-bold text-gray-800 text-sm">📂 {category}</td>
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">📂 {category}</td>
+                        <td colSpan={3} className="bg-gray-100"></td>
                       </tr>
                       {items.map((item, idx) => (
-                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                          <td className="p-5 text-left font-bold text-gray-800">{item.name} <span className="text-xs text-gray-500 ml-1 font-normal">({item.unit})</span></td>
+                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                          <td className="p-5 text-left font-bold text-gray-800 sticky left-0 z-20 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">{item.name} <span className="text-xs text-gray-500 ml-1 font-normal">({item.unit})</span></td>
                           <td className="p-5 text-[#059669] font-bold text-lg bg-green-50/30">+{item.total_incoming}</td>
                           <td className="p-5 text-[#df2323] font-bold text-lg bg-red-50/30">-{item.total_used}</td>
                           <td className="p-5 text-[#2563eb] font-bold text-xl bg-blue-50/30">{item.latest_balance}</td>
@@ -304,20 +250,13 @@ export default function HistoryPage() {
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
-              <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner"><svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">สำเร็จ!</h3>
             <p className="text-gray-500 mb-8 leading-relaxed">อัปเดตข้อมูลย้อนหลังเรียบร้อยแล้ว</p>
-            <button onClick={() => setSuccessModal(false)} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3.5 rounded-xl shadow-md transition-colors">
-              ตกลง
-            </button>
+            <button onClick={() => setSuccessModal(false)} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3.5 rounded-xl shadow-md transition-colors">ตกลง</button>
           </div>
         </div>
       )}
-
     </div>
   )
 }
