@@ -24,8 +24,6 @@ interface DailyCheck {
 export default function DailyCheckPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
-  
-  // 🔴 เปลี่ยนจากเก็บของเมื่อวาน เป็นเก็บ "ข้อมูลล่าสุด" ของแต่ละสินค้า
   const [latestPastChecks, setLatestPastChecks] = useState<Record<number, DailyCheck>>({})
   
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -43,23 +41,19 @@ export default function DailyCheckPage() {
   const todayForDB = today.toLocaleDateString('en-CA')
 
   const fetchData = async () => {
-    // 1. ดึงสินค้าและหมวดหมู่
     const { data: pData } = await supabase.from('products').select('*, categories(name)').order('id', { ascending: true })
     if (pData) setProducts(pData as Product[])
 
-    // 2. ดึงยอดของวันนี้
     const { data: tData } = await supabase.from('daily_stock_checks').select('*').eq('check_date', todayForDB)
     if (tData) setTodayChecks(tData as DailyCheck[])
 
-    // 3. 🔴 ดึงยอดเช็คย้อนหลังทั้งหมด (ที่ก่อนหน้าวันนี้) แล้วเรียงจากใหม่ไปเก่า
     const { data: pastData } = await supabase
       .from('daily_stock_checks')
       .select('*')
       .lt('check_date', todayForDB)
       .order('check_date', { ascending: false })
-      .limit(3000) // ดึงเผื่อไว้เยอะๆ กรณีร้านปิดหลายวัน
+      .limit(3000)
 
-    // 4. 🔴 กรองเอาเฉพาะ "ยอดล่าสุด" ของสินค้านั้นๆ
     const latestMap: Record<number, DailyCheck> = {}
     if (pastData) {
       pastData.forEach((check: any) => {
@@ -77,9 +71,8 @@ export default function DailyCheckPage() {
 
   const tableRows = products.map(product => {
     const tCheck = todayChecks.find(c => c.product_id === product.id)
-    const latestCheck = latestPastChecks[product.id] // 🔴 ดึงยอดล่าสุดมาใช้
+    const latestCheck = latestPastChecks[product.id]
 
-    // คำนวณยอดเหลือล่าสุด (ถ้านับตอนเย็นไว้ เอาตอนเย็นมาใช้ ถ้าไม่ได้นับเอายอดรวมมาใช้)
     let defaultLatestBalance = 0;
     if (latestCheck) {
       if (latestCheck.evening_counted !== null) {
@@ -97,13 +90,12 @@ export default function DailyCheckPage() {
       min_limit: product.min_limit,
       max_limit: product.max_limit,
       check_id: tCheck?.id || null,
-      yesterday_balance: tCheck ? tCheck.yesterday_balance : defaultLatestBalance, // 🔴 โชว์ยอดล่าสุด
+      yesterday_balance: tCheck ? tCheck.yesterday_balance : defaultLatestBalance,
       incoming: tCheck ? tCheck.incoming : 0,
       evening_counted: tCheck ? tCheck.evening_counted : null,
     }
   })
 
-  // จัดกลุ่มตามหมวดหมู่
   const groupedRows = tableRows.reduce((acc, row) => {
     const cat = row.categoryName;
     if (!acc[cat]) acc[cat] = [];
@@ -163,7 +155,6 @@ export default function DailyCheckPage() {
         }, { onConflict: 'check_date, product_id' })
 
       if (error) throw error
-
       setEditingIncomingId(null)
       fetchData()
     } catch (error: any) {
@@ -184,7 +175,6 @@ export default function DailyCheckPage() {
         }, { onConflict: 'check_date, product_id' })
 
       if (error) throw error
-
       setEditingEveningId(null)
       fetchData()
     } catch (error: any) {
@@ -216,7 +206,6 @@ export default function DailyCheckPage() {
               </select>
             </div>
             <div className="w-full sm:w-40">
-              {/* 🔴 เปลี่ยนคำอธิบายเป็น "ยอดเหลือล่าสุด" */}
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">ยอดเหลือล่าสุด</label>
               <input type="number" step="any" value={yesterdayBalance} onChange={(e) => setYesterdayBalance(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors bg-gray-50 text-sm sm:text-base" placeholder="0" />
@@ -232,36 +221,48 @@ export default function DailyCheckPage() {
           </form>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-[#2563eb] p-4 px-8 text-white font-bold flex items-center justify-between gap-3 border-b border-[#1d4ed8]">
+        {/* ========================================================= */}
+        {/* 🔴 ตารางเช็คเย็น (ล็อกหัวตาราง และ ล็อกคอลัมน์ชื่อสินค้า) */}
+        {/* ========================================================= */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
+          
+          <div className="bg-[#2563eb] p-4 px-8 text-white font-bold flex items-center justify-between gap-3 border-b border-[#1d4ed8] flex-shrink-0 z-40 relative">
             <div className="flex items-center gap-3"><span className="text-2xl">🌙</span> ตารางเช็คของตอนเย็น (ปิดร้าน)</div>
             <div className="text-sm bg-[#1d4ed8] px-4 py-1.5 rounded-full shadow-inner font-medium">{tableRows.length} รายการ</div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30">
             <table className="w-full text-center border-collapse">
-              <thead>
-                <tr className="text-sm border-b border-gray-100">
-                  <th className="p-5 text-left bg-gray-50/50 w-1/4 font-semibold text-gray-600">รายการสินค้า (หน่วย)</th>
-                  {/* 🔴 เปลี่ยนหัวตาราง */}
+              
+              {/* ล็อกหัวตาราง (Sticky Top) */}
+              <thead className="sticky top-0 z-30 shadow-sm">
+                <tr className="text-sm border-b border-gray-200">
+                  {/* ล็อกคอลัมน์ซ้ายสุดของหัวตาราง (Sticky Left + Top) */}
+                  <th className="p-5 text-left bg-gray-100 w-1/4 font-bold text-gray-700 sticky left-0 z-40 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                    รายการสินค้า (หน่วย)
+                  </th>
                   <th className="p-5 bg-[#facc15] text-[#854d0e] border-r border-[#eab308]">ยอดเหลือล่าสุด</th>
                   <th className="p-5 bg-[#facc15] text-[#854d0e] border-r border-[#eab308]">รับเข้าวันนี้</th>
                   <th className="p-5 bg-[#eab308] text-[#854d0e] font-bold border-r border-[#ca8a04]">รวมมีของ</th>
                   <th className="p-5 bg-[#2563eb] text-white font-bold border-r border-[#1d4ed8] w-48">นับได้ตอนเย็น</th>
-                  <th className="p-5 bg-gray-100 text-gray-600">ถูกใช้ไป</th>
+                  <th className="p-5 bg-white text-gray-600 border-r border-gray-200">ถูกใช้ไป</th>
                   <th className="p-5 bg-[#fef2f2] text-[#df2323] font-bold border-l border-[#fecaca]">ต้องสั่งเพิ่ม</th>
                 </tr>
               </thead>
-              <tbody>
+              
+              <tbody className="bg-white">
                 {tableRows.length === 0 ? (
                   <tr><td colSpan={7} className="p-16 text-gray-400">ยังไม่มีรายการสินค้าในระบบ</td></tr>
                 ) : (
                   Object.entries(groupedRows).map(([category, items]) => (
                     <React.Fragment key={category}>
+                      
+                      {/* แถวหมวดหมู่ (ล็อกให้อยู่ซ้ายสุดตลอด) */}
                       <tr className="bg-gray-100 border-y border-gray-200">
-                        <td colSpan={7} className="p-3 pl-6 text-left font-bold text-gray-800 text-sm">
-                          📂 หมวดหมู่: {category}
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          📂 {category}
                         </td>
+                        <td colSpan={6} className="bg-gray-100"></td>
                       </tr>
                       
                       {items.map((item) => {
@@ -282,31 +283,33 @@ export default function DailyCheckPage() {
                         }
 
                         return (
-                          <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                            <td className="p-5 text-left font-semibold text-gray-800 bg-white">
+                          // เติม class 'group' เพื่อให้ hover แล้วเปลี่ยนสีพร้อมกันทั้งแถว
+                          <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors group">
+                            
+                            {/* ล็อกชื่อสินค้า (Sticky Left) */}
+                            <td className="p-5 text-left font-semibold text-gray-800 bg-white group-hover:bg-gray-50/80 sticky left-0 z-20 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
                               {item.name}
                               <div className="text-xs text-gray-500 font-normal mt-2 flex gap-3">
                                 <span>Max: {item.max_limit !== null ? Number(item.max_limit.toFixed(1)) : '-'}</span> 
                                 <span>Min: {item.min_limit !== null ? Number(item.min_limit.toFixed(1)) : '-'}</span>
                               </div>
                             </td>
-                            <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">{Number(item.yesterday_balance.toFixed(1))}</td>
+
+                            <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/30">{Number(item.yesterday_balance.toFixed(1))}</td>
                             
-                            <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/50">
+                            <td className="p-5 text-yellow-900 font-semibold bg-yellow-50/30">
                               {editingIncomingId === item.id ? (
                                 <div className="flex flex-col items-center gap-2">
                                   <input 
-                                    type="number" 
-                                    step="any"
-                                    autoFocus
+                                    type="number" step="any" autoFocus
                                     className="w-20 border-2 border-[#facc15] rounded-xl p-2 text-center font-bold text-gray-900 focus:outline-none shadow-sm" 
                                     value={editIncomingCount} 
                                     onChange={(e) => setEditIncomingCount(e.target.value)} 
                                     onKeyDown={(e) => e.key === 'Enter' && handleSaveIncoming(item.id, item.yesterday_balance, item.evening_counted)} 
                                   />
                                   <div className="flex gap-1">
-                                    <button onClick={() => handleSaveIncoming(item.id, item.yesterday_balance, item.evening_counted)} className="bg-yellow-600 text-white text-[11px] px-2 py-1 rounded-md hover:bg-yellow-700 shadow-sm font-bold">บันทึก</button>
-                                    <button onClick={() => setEditingIncomingId(null)} className="bg-yellow-100 text-yellow-800 text-[11px] px-2 py-1 rounded-md hover:bg-yellow-200 shadow-sm font-bold">ยกเลิก</button>
+                                    <button onClick={() => handleSaveIncoming(item.id, item.yesterday_balance, item.evening_counted)} className="bg-yellow-600 text-white text-[11px] px-2 py-1 rounded-md hover:bg-yellow-700 font-bold">บันทึก</button>
+                                    <button onClick={() => setEditingIncomingId(null)} className="bg-yellow-100 text-yellow-800 text-[11px] px-2 py-1 rounded-md hover:bg-yellow-200 font-bold">ยกเลิก</button>
                                   </div>
                                 </div>
                               ) : (
@@ -325,23 +328,21 @@ export default function DailyCheckPage() {
                               )}
                             </td>
 
-                            <td className="p-5 text-yellow-950 font-bold text-xl bg-yellow-100/50">{totalAvailable}</td>
+                            <td className="p-5 text-yellow-950 font-bold text-xl bg-yellow-100/40">{totalAvailable}</td>
                             
-                            <td className="p-5 bg-blue-50/30 text-blue-700">
+                            <td className="p-5 bg-blue-50/20 text-blue-700">
                               {editingEveningId === item.id ? (
                                 <div className="flex flex-col items-center gap-2">
                                   <input 
-                                    type="number" 
-                                    step="any"
-                                    autoFocus 
+                                    type="number" step="any" autoFocus 
                                     className="w-24 border-2 border-blue-400 rounded-xl p-2.5 text-center font-bold text-gray-900 focus:outline-none shadow-md" 
                                     value={editEveningCount} 
                                     onChange={(e) => setEditEveningCount(e.target.value)} 
                                     onKeyDown={(e) => e.key === 'Enter' && handleSaveEvening(item.id, item.yesterday_balance, item.incoming)} 
                                   />
                                   <div className="flex gap-2 mt-1">
-                                    <button onClick={() => handleSaveEvening(item.id, item.yesterday_balance, item.incoming)} className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors font-bold">บันทึก</button>
-                                    <button onClick={() => setEditingEveningId(null)} className="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg hover:bg-gray-300 shadow-sm transition-colors font-bold">ยกเลิก</button>
+                                    <button onClick={() => handleSaveEvening(item.id, item.yesterday_balance, item.incoming)} className="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg hover:bg-blue-700 font-bold">บันทึก</button>
+                                    <button onClick={() => setEditingEveningId(null)} className="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg hover:bg-gray-300 font-bold">ยกเลิก</button>
                                   </div>
                                 </div>
                               ) : (
@@ -374,9 +375,9 @@ export default function DailyCheckPage() {
                               )}
                             </td>
                             
-                            <td className="p-5 text-gray-700 font-semibold text-xl bg-gray-50/50">{usedAmount}</td>
+                            <td className="p-5 text-gray-700 font-semibold text-xl">{usedAmount}</td>
                             
-                            <td className={`p-5 font-bold text-xl bg-red-50/30 border-l border-[#fecaca] ${needsOrder ? 'text-[#df2323]' : 'text-gray-400'}`}>
+                            <td className={`p-5 font-bold text-xl bg-red-50/20 border-l border-[#fecaca] ${needsOrder ? 'text-[#df2323]' : 'text-gray-400'}`}>
                               {needsOrder ? `+${orderAmount}` : (orderAmount === '-' ? '-' : orderAmount)}
                               {needsOrder && <div className="text-[10px] bg-[#df2323] text-white px-3 py-1 rounded-full inline-block mt-2 font-bold shadow-md border border-[#c21e1e]">ต้องสั่งของ!</div>}
                             </td>
