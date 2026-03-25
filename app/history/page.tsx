@@ -1,14 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 
 interface ProductInfo {
   name: string;
   unit: string;
+  hide_used: boolean | null;
   categories?: { name: string } | null;
 }
-
 interface HistoryItem {
   id: number;
   product_id: number;
@@ -18,14 +18,14 @@ interface HistoryItem {
   evening_counted: number | null;
   products: ProductInfo; 
 }
-
 interface MonthlySummary {
   id: number;
   name: string;
   unit: string;
   category: string;
+  hide_used: boolean | null;
   total_incoming: number;
-  total_used: number;
+  total_used: number | string;
   latest_balance: number;
 }
 
@@ -45,51 +45,41 @@ export default function HistoryPage() {
   const [successModal, setSuccessModal] = useState(false)
   const today = new Date()
 
+  const [activeCategory, setActiveCategory] = useState<string>('')
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+  const categoryRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+
   useEffect(() => {
     const tempDates = []
-    for (let i = 0; i < 31; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      tempDates.push(d)
-    }
-    setDates(tempDates)
-    setSelectedDate(tempDates[0].toLocaleDateString('en-CA'))
+    for (let i = 0; i < 31; i++) { const d = new Date(); d.setDate(d.getDate() - i); tempDates.push(d) }
+    setDates(tempDates); setSelectedDate(tempDates[0].toLocaleDateString('en-CA'))
 
     const tempMonths = []
-    for (let i = 0; i < 12; i++) {
-      const d = new Date()
-      d.setDate(1) 
-      d.setMonth(today.getMonth() - i)
-      tempMonths.push(d)
-    }
-    setMonths(tempMonths)
-    setSelectedMonth(`${tempMonths[0].getFullYear()}-${String(tempMonths[0].getMonth() + 1).padStart(2, '0')}`)
+    for (let i = 0; i < 12; i++) { const d = new Date(); d.setDate(1); d.setMonth(today.getMonth() - i); tempMonths.push(d) }
+    setMonths(tempMonths); setSelectedMonth(`${tempMonths[0].getFullYear()}-${String(tempMonths[0].getMonth() + 1).padStart(2, '0')}`)
   }, [])
 
   const fetchHistory = async () => {
     if (viewMode === 'daily' && selectedDate) {
-      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, categories(name))').eq('check_date', selectedDate).order('id', { ascending: true })
+      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, hide_used, categories(name))').eq('check_date', selectedDate).order('id', { ascending: true })
       if (data) setHistoryData(data as HistoryItem[])
     } 
     else if (viewMode === 'monthly' && selectedMonth) {
       const [year, month] = selectedMonth.split('-')
       const start = `${selectedMonth}-01`
       const end = new Date(parseInt(year), parseInt(month), 0).toLocaleDateString('en-CA')
-      
-      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, categories(name))').gte('check_date', start).lte('check_date', end).order('check_date', { ascending: true }) 
+      const { data } = await supabase.from('daily_stock_checks').select('*, products(name, unit, hide_used, categories(name))').gte('check_date', start).lte('check_date', end).order('check_date', { ascending: true }) 
       if (data) setHistoryData(data as HistoryItem[])
     }
   }
 
-  useEffect(() => { fetchHistory() }, [viewMode, selectedDate, selectedMonth])
+  useEffect(() => { fetchHistory(); categoryRefs.current = {}; }, [viewMode, selectedDate, selectedMonth])
 
   const handleSaveEdit = async (id: number) => {
     try {
       const { error } = await supabase.from('daily_stock_checks').update({ yesterday_balance: editYest === '' ? 0 : parseFloat(editYest), incoming: editInc === '' ? 0 : parseFloat(editInc), evening_counted: editEve === '' ? null : parseFloat(editEve) }).eq('id', id)
       if (error) throw error
-      setEditingId(null)
-      fetchHistory()
-      setSuccessModal(true)
+      setEditingId(null); fetchHistory(); setSuccessModal(true)
     } catch (error: any) { alert('❌ อัปเดตไม่สำเร็จ: ' + error.message) }
   }
 
@@ -98,21 +88,45 @@ export default function HistoryPage() {
     historyData.forEach(item => {
       const pid = item.product_id
       if (!summaryMap[pid]) {
-        summaryMap[pid] = { id: pid, name: item.products?.name || 'ไม่ระบุ', unit: item.products?.unit || '-', category: item.products?.categories?.name || 'ไม่มีหมวดหมู่', total_incoming: 0, total_used: 0, latest_balance: 0 }
+        summaryMap[pid] = { id: pid, name: item.products?.name || 'ไม่ระบุ', unit: item.products?.unit || '-', category: item.products?.categories?.name || 'ไม่มีหมวดหมู่', hide_used: item.products?.hide_used || false, total_incoming: 0, total_used: 0, latest_balance: 0 }
       }
       const totalAvailable = Number((item.yesterday_balance + item.incoming).toFixed(1));
-      const used = item.evening_counted !== null ? Number((totalAvailable - item.evening_counted).toFixed(1)) : 0;
+      const used = (item.evening_counted !== null && !item.products?.hide_used) ? Number((totalAvailable - item.evening_counted).toFixed(1)) : 0;
       
       summaryMap[pid].total_incoming = Number((summaryMap[pid].total_incoming + item.incoming).toFixed(1));
-      summaryMap[pid].total_used = Number((summaryMap[pid].total_used + used).toFixed(1));
+      if(summaryMap[pid].total_used !== '-') summaryMap[pid].total_used = Number((Number(summaryMap[pid].total_used) + used).toFixed(1));
       summaryMap[pid].latest_balance = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : summaryMap[pid].latest_balance;
     })
-    return Object.values(summaryMap)
+    return Object.values(summaryMap).map(s => ({ ...s, total_used: s.hide_used ? '-' : s.total_used }));
   }
 
   const monthlySummaryData = getMonthlySummary()
   const groupedDailyHistory = historyData.reduce((acc, item) => { const cat = item.products?.categories?.name || 'ไม่มีหมวดหมู่'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); return acc; }, {} as Record<string, HistoryItem[]>);
   const groupedMonthlySummary = monthlySummaryData.reduce((acc, item) => { const cat = item.category; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); return acc; }, {} as Record<string, MonthlySummary[]>);
+
+  const categoriesList = viewMode === 'daily' ? Object.keys(groupedDailyHistory) : Object.keys(groupedMonthlySummary);
+
+  const handleScroll = () => {
+    if (!tableContainerRef.current) return;
+    const container = tableContainerRef.current;
+    const scrollPosition = container.scrollTop + 60; 
+
+    let currentActive = '';
+    for (const cat of categoriesList) {
+      const el = categoryRefs.current[cat];
+      if (el && el.offsetTop <= scrollPosition) currentActive = cat;
+    }
+    
+    if (currentActive && currentActive !== activeCategory) setActiveCategory(currentActive);
+  };
+
+  const scrollToCategory = (cat: string) => {
+    const el = categoryRefs.current[cat];
+    if (el && tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({ top: el.offsetTop - 50, behavior: 'smooth' });
+      setActiveCategory(cat);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
@@ -143,16 +157,30 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 🔴 ตารางประวัติ (เพิ่มล็อกหัวตาราง & ล็อกคอลัมน์ชื่อ) */}
-      {/* ========================================================= */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[70vh] min-h-[500px]">
-        <div className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30">
+        
+        <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center">
+          {categoriesList.map(cat => (
+            <button 
+              key={cat}
+              onClick={() => scrollToCategory(cat)}
+              className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        <div 
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+          className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30 scroll-smooth"
+        >
           {viewMode === 'daily' ? (
             <table className="w-full text-center border-collapse">
-              <thead className="sticky top-0 z-30 shadow-sm">
+              <thead className="sticky top-0 z-20 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า (หน่วย)</th>
+                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า</th>
                   <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">เหลือเมื่อวาน</th>
                   <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">รับเข้า</th>
                   <th className="p-4 font-bold text-yellow-800 bg-yellow-100/90">รวมมีของ</th>
@@ -165,19 +193,38 @@ export default function HistoryPage() {
                 {historyData.length === 0 ? (<tr><td colSpan={7} className="p-12 text-gray-400">ไม่มีข้อมูลบันทึกในวันที่เลือก</td></tr>) : (
                   Object.entries(groupedDailyHistory).map(([category, items]) => (
                     <React.Fragment key={category}>
-                      <tr className="bg-gray-100 border-y border-gray-200">
-                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">📂 {category}</td>
+                      {/* 🔴 นำแถบสีเทาแยกหมวดหมู่กลับมา */}
+                      <tr 
+                        ref={(el) => { categoryRefs.current[category] = el; }} 
+                        className="bg-gray-100 border-y border-gray-200"
+                      >
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          📂 {category}
+                        </td>
                         <td colSpan={6} className="bg-gray-100"></td>
                       </tr>
+                      
                       {items.map((item) => {
                         const total = Number((item.yesterday_balance + item.incoming).toFixed(1));
                         const eveningCounted = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-';
-                        const used = item.evening_counted !== null ? Number((total - item.evening_counted).toFixed(1)) : '-';
+                        const used = (item.evening_counted !== null && !item.products?.hide_used) ? Number((total - item.evening_counted).toFixed(1)) : '-';
                         const isEditing = editingId === item.id
 
                         return (
                           <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
-                            <td className="p-4 text-left font-bold text-gray-800 sticky left-0 z-20 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">{item.products?.name}</td>
+                            <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                              <div className="font-bold text-gray-800 text-[15px]">{item.products?.name}</div>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                                  {item.products?.unit}
+                                </span>
+                                {item.products?.hide_used && (
+                                  <span className="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 shadow-sm">
+                                    🚫 ซ่อนยอด
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             {isEditing ? (
                               <>
                                 <td className="p-2"><input type="number" step="any" className="w-20 border-2 border-yellow-400 rounded-lg p-2 text-center font-bold" value={editYest} onChange={e => setEditYest(e.target.value)} /></td>
@@ -214,9 +261,9 @@ export default function HistoryPage() {
             </table>
           ) : (
             <table className="w-full text-center border-collapse">
-              <thead className="sticky top-0 z-30 shadow-sm">
+              <thead className="sticky top-0 z-20 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า (หน่วย)</th>
+                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า</th>
                   <th className="p-5 font-bold text-[#059669] bg-green-50/90">รับเข้าทั้งหมด (เดือนนี้)</th>
                   <th className="p-5 font-bold text-[#df2323] bg-red-50/90">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
                   <th className="p-5 font-bold text-[#2563eb] bg-blue-50/90">ยอดคงเหลือล่าสุด</th>
@@ -226,15 +273,34 @@ export default function HistoryPage() {
                 {monthlySummaryData.length === 0 ? (<tr><td colSpan={4} className="p-12 text-gray-400">ไม่มีความเคลื่อนไหวสต๊อกในเดือนที่เลือก</td></tr>) : (
                   Object.entries(groupedMonthlySummary).map(([category, items]) => (
                     <React.Fragment key={category}>
-                      <tr className="bg-gray-100 border-y border-gray-200">
-                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">📂 {category}</td>
+                      {/* 🔴 นำแถบสีเทาแยกหมวดหมู่กลับมา */}
+                      <tr 
+                        ref={(el) => { categoryRefs.current[category] = el; }} 
+                        className="bg-gray-100 border-y border-gray-200"
+                      >
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                          📂 {category}
+                        </td>
                         <td colSpan={3} className="bg-gray-100"></td>
                       </tr>
-                      {items.map((item, idx) => (
-                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
-                          <td className="p-5 text-left font-bold text-gray-800 sticky left-0 z-20 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">{item.name} <span className="text-xs text-gray-500 ml-1 font-normal">({item.unit})</span></td>
+                      
+                      {items.map((item, index) => (
+                        <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                          <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                            <div className="font-bold text-gray-800 text-[15px]">{item.name}</div>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                                {item.unit}
+                              </span>
+                              {item.hide_used && (
+                                <span className="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 shadow-sm">
+                                  🚫 ซ่อนยอด
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-5 text-[#059669] font-bold text-lg bg-green-50/30">+{item.total_incoming}</td>
-                          <td className="p-5 text-[#df2323] font-bold text-lg bg-red-50/30">-{item.total_used}</td>
+                          <td className="p-5 text-[#df2323] font-bold text-lg bg-red-50/30">{item.total_used !== '-' ? `-${item.total_used}` : '-'}</td>
                           <td className="p-5 text-[#2563eb] font-bold text-xl bg-blue-50/30">{item.latest_balance}</td>
                         </tr>
                       ))}
