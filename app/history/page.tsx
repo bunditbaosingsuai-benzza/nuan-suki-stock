@@ -180,7 +180,8 @@ export default function HistoryPage() {
             <table className="w-full text-center border-collapse">
               <thead className="sticky top-0 z-20 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า</th>
+                  {/* 🔴 เพิ่ม min-w-[140px] เพื่อไม่ให้คอลัมน์แรกโดนบีบในมือถือ */}
+                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px]">รายการสินค้า (หน่วย)</th>
                   <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">เหลือเมื่อวาน</th>
                   <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">รับเข้า</th>
                   <th className="p-4 font-bold text-yellow-800 bg-yellow-100/90">รวมมีของ</th>
@@ -193,25 +194,28 @@ export default function HistoryPage() {
                 {historyData.length === 0 ? (<tr><td colSpan={7} className="p-12 text-gray-400">ไม่มีข้อมูลบันทึกในวันที่เลือก</td></tr>) : (
                   Object.entries(groupedDailyHistory).map(([category, items]) => (
                     <React.Fragment key={category}>
-                      {/* 🔴 นำแถบสีเทาแยกหมวดหมู่กลับมา */}
                       <tr 
                         ref={(el) => { categoryRefs.current[category] = el; }} 
                         className="bg-gray-100 border-y border-gray-200"
                       >
-                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        {/* 🔴 เพิ่ม whitespace-nowrap เพื่อไม่ให้หมวดหมู่ตัดขึ้นบรรทัดใหม่ */}
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
                           📂 {category}
                         </td>
                         <td colSpan={6} className="bg-gray-100"></td>
                       </tr>
-                      
-                      {items.map((item) => {
+                      {items.map((item, index) => {
                         const total = Number((item.yesterday_balance + item.incoming).toFixed(1));
                         const eveningCounted = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-';
                         const used = (item.evening_counted !== null && !item.products?.hide_used) ? Number((total - item.evening_counted).toFixed(1)) : '-';
                         const isEditing = editingId === item.id
 
                         return (
-                          <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                          <tr 
+                            key={item.id} 
+                            ref={(el) => { if(index === 0) categoryRefs.current[category] = el; }}
+                            className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group"
+                          >
                             <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
                               <div className="font-bold text-gray-800 text-[15px]">{item.products?.name}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -263,7 +267,8 @@ export default function HistoryPage() {
             <table className="w-full text-center border-collapse">
               <thead className="sticky top-0 z-20 shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า</th>
+                  {/* 🔴 เพิ่ม min-w-[140px] สำหรับตารางรายเดือน */}
+                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px]">รายการสินค้า</th>
                   <th className="p-5 font-bold text-[#059669] bg-green-50/90">รับเข้าทั้งหมด (เดือนนี้)</th>
                   <th className="p-5 font-bold text-[#df2323] bg-red-50/90">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
                   <th className="p-5 font-bold text-[#2563eb] bg-blue-50/90">ยอดคงเหลือล่าสุด</th>
@@ -273,19 +278,22 @@ export default function HistoryPage() {
                 {monthlySummaryData.length === 0 ? (<tr><td colSpan={4} className="p-12 text-gray-400">ไม่มีความเคลื่อนไหวสต๊อกในเดือนที่เลือก</td></tr>) : (
                   Object.entries(groupedMonthlySummary).map(([category, items]) => (
                     <React.Fragment key={category}>
-                      {/* 🔴 นำแถบสีเทาแยกหมวดหมู่กลับมา */}
                       <tr 
                         ref={(el) => { categoryRefs.current[category] = el; }} 
                         className="bg-gray-100 border-y border-gray-200"
                       >
-                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
                           📂 {category}
                         </td>
                         <td colSpan={3} className="bg-gray-100"></td>
                       </tr>
                       
                       {items.map((item, index) => (
-                        <tr key={index} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                        <tr 
+                          key={index} 
+                          ref={(el) => { if(index === 0) categoryRefs.current[category] = el; }}
+                          className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group"
+                        >
                           <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
                             <div className="font-bold text-gray-800 text-[15px]">{item.name}</div>
                             <div className="flex flex-wrap items-center gap-1.5 mt-2">
