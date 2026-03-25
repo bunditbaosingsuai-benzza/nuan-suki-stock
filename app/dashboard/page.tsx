@@ -32,8 +32,9 @@ export default function DashboardPage() {
   const [latestPastChecks, setLatestPastChecks] = useState<Record<number, DailyCheck>>({})
   const [isLoading, setIsLoading] = useState(true)
   
-  // 🔴 State สำหรับตัวกรองหมวดหมู่ในตารางสั่งของ
+  // 🔴 State สำหรับตัวกรองหมวดหมู่ทั้ง 2 ตาราง
   const [orderFilter, setOrderFilter] = useState('ทั้งหมด')
+  const [incomingFilter, setIncomingFilter] = useState('ทั้งหมด') // 🟢 เพิ่มตัวกรองของเข้า
 
   const today = new Date()
   const todayForDB = today.toLocaleDateString('en-CA')
@@ -90,7 +91,9 @@ export default function DashboardPage() {
     return acc;
   }, {} as Record<string, typeof dashboardRows>);
 
-  // คำนวณยอดสั่งของแบบมีของเหยา
+  // ==========================================
+  // 🔴 1. จัดการข้อมูลตารางสั่งของ (สีแดง)
+  // ==========================================
   const itemsToOrder: any[] = [];
   
   dashboardRows.forEach(row => {
@@ -121,15 +124,27 @@ export default function DashboardPage() {
     }
   });
 
-  // 🔴 ดึงรายชื่อหมวดหมู่เฉพาะที่มีของต้องสั่ง (เอาตัวซ้ำออก)
   const orderCategories = Array.from(new Set(itemsToOrder.map(item => item.category)));
-
-  // 🔴 กรองข้อมูลตารางสั่งของตามที่ผู้ใช้เลือก (Filter)
   const filteredOrderItems = orderFilter === 'ทั้งหมด' 
     ? itemsToOrder 
     : itemsToOrder.filter(item => item.category === orderFilter);
 
-  const itemsReceivedToday = dashboardRows.filter(row => row.incoming > 0).map(row => ({ name: row.name, category: row.categoryName, incoming: row.incoming, unit: row.unit }));
+  // ==========================================
+  // 🟢 2. จัดการข้อมูลตารางของเข้า (สีเขียว)
+  // ==========================================
+  const itemsReceivedToday = dashboardRows.filter(row => row.incoming > 0).map(row => ({ 
+    name: row.name, 
+    category: row.categoryName, 
+    incoming: row.incoming, 
+    unit: row.unit 
+  }));
+
+  const incomingCategories = Array.from(new Set(itemsReceivedToday.map(item => item.category)));
+  const filteredIncomingItems = incomingFilter === 'ทั้งหมด' 
+    ? itemsReceivedToday 
+    : itemsReceivedToday.filter(item => item.category === incomingFilter);
+
+  // สรุปความคืบหน้า
   const totalProductsCount = products.length;
   const checkedProductsCount = dashboardRows.filter(r => r.evening_counted !== null).length;
   const progressPercent = totalProductsCount > 0 ? Math.round((checkedProductsCount / totalProductsCount) * 100) : 0;
@@ -164,9 +179,11 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        
+        {/* ============================== */}
+        {/* 🔴 ตารางซ้าย: สั่งของ (สีแดง) */}
+        {/* ============================== */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#fecaca] overflow-hidden flex flex-col h-[400px]">
-          
-          {/* 🔴 ส่วนหัวของตารางสั่งของ + ตัวกรองหมวดหมู่ */}
           <div className="bg-[#e11d48] p-4 px-6 text-white font-bold flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">🛒 สรุปสั่งของ ประจำวัน</div>
             <div className="flex items-center gap-2">
@@ -194,7 +211,6 @@ export default function DashboardPage() {
             <table className="w-full text-center border-collapse">
               <thead className="sticky top-0 bg-white shadow-sm"><tr className="text-sm border-b border-gray-100"><th className="p-4 text-left font-bold text-gray-700">ชื่อสินค้า</th><th className="p-4 font-bold text-gray-700">เหลืออยู่</th><th className="p-4 font-bold text-[#e11d48]">ต้องสั่งเพิ่ม</th></tr></thead>
               <tbody>
-                {/* 🔴 วนลูปจาก filteredOrderItems แทน itemsToOrder */}
                 {filteredOrderItems.length === 0 ? (<tr><td colSpan={3} className="p-12 text-gray-400">✅ ไม่มีสินค้าที่ต้องสั่งเพิ่มในหมวดนี้</td></tr>) : (
                   filteredOrderItems.map((item, idx) => (
                     <tr key={idx} className="border-b border-gray-50 hover:bg-red-50/30">
@@ -212,14 +228,39 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ============================== */}
+        {/* 🟢 ตารางขวา: ของเข้า (สีเขียว) */}
+        {/* ============================== */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#a7f3d0] overflow-hidden flex flex-col h-[400px]">
-          <div className="bg-[#059669] p-4 px-6 text-white font-bold flex items-center justify-between"><div className="flex items-center gap-2">📦 รายการของเข้าวันนี้</div><div className="text-xs bg-[#047857] px-3 py-1 rounded-full">{itemsReceivedToday.length} รายการ</div></div>
+          <div className="bg-[#059669] p-4 px-6 text-white font-bold flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">📦 รายการของเข้าวันนี้</div>
+            <div className="flex items-center gap-2">
+              <select 
+                value={incomingFilter} 
+                onChange={(e) => setIncomingFilter(e.target.value)}
+                className="text-xs bg-[#047857] text-white border border-white/20 rounded-full py-1.5 pl-3 pr-8 focus:outline-none shadow-inner font-medium cursor-pointer hover:bg-[#065f46] transition-colors appearance-none"
+                style={{ 
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, 
+                  backgroundRepeat: 'no-repeat', 
+                  backgroundPosition: 'right 0.5rem center', 
+                  backgroundSize: '1em 1em' 
+                }}
+              >
+                <option value="ทั้งหมด" className="bg-white text-gray-800">ทั้งหมด</option>
+                {incomingCategories.map(cat => (
+                  <option key={cat} value={cat} className="bg-white text-gray-800">{cat}</option>
+                ))}
+              </select>
+              <div className="text-xs bg-[#065f46] px-3 py-1.5 rounded-full">{filteredIncomingItems.length} รายการ</div>
+            </div>
+          </div>
+
           <div className="overflow-y-auto flex-1 custom-scrollbar">
             <table className="w-full text-center border-collapse">
               <thead className="sticky top-0 bg-white shadow-sm"><tr className="text-sm border-b border-gray-100"><th className="p-4 text-left font-bold text-gray-700">ชื่อสินค้า</th><th className="p-4 font-bold text-gray-700">หมวดหมู่</th><th className="p-4 font-bold text-[#059669] text-right">จำนวนที่เข้า</th></tr></thead>
               <tbody>
-                {itemsReceivedToday.length === 0 ? (<tr><td colSpan={3} className="p-12 text-gray-400">ยังไม่มีรายการรับของเข้า</td></tr>) : (
-                  itemsReceivedToday.map((item, idx) => (
+                {filteredIncomingItems.length === 0 ? (<tr><td colSpan={3} className="p-12 text-gray-400">ยังไม่มีรายการรับของเข้าในหมวดนี้</td></tr>) : (
+                  filteredIncomingItems.map((item, idx) => (
                     <tr key={idx} className="border-b border-gray-50 hover:bg-green-50/30"><td className="p-4 text-left font-bold text-gray-800">{item.name}</td><td className="p-4 text-gray-600 text-sm">{item.category}</td><td className="p-4 text-right bg-green-50/50"><span className="font-bold text-[#059669] text-xl mr-1">+{item.incoming}</span><span className="text-xs text-gray-500">{item.unit}</span></td></tr>
                   ))
                 )}
@@ -229,23 +270,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 p-4 px-6 border-b border-gray-200 flex justify-between items-center">
+<div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
+        <div className="bg-gray-50 p-4 px-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0 z-40 relative">
           <div className="font-bold text-gray-700 flex items-center gap-2"><span className="text-xl">📊</span> ภาพรวมสต๊อกทั้งหมด <span className="font-normal text-sm text-gray-500 hidden sm:inline">(อิงจากข้อมูลล่าสุด)</span></div>
           <div className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs font-bold shadow-inner">{totalProductsCount} รายการ</div>
         </div>
-        <div className="overflow-x-auto">
+        
+        <div className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30">
           <table className="w-full text-center border-collapse">
-            <thead>
-              <tr className="text-sm border-b border-gray-200 bg-white"><th className="p-5 font-bold text-gray-700 text-left">รายการสินค้า</th><th className="p-5 font-bold text-yellow-700 bg-yellow-50/50 border-l border-yellow-100">ยอดเหลือล่าสุด</th><th className="p-5 font-bold text-yellow-700 bg-yellow-50/50">รับเข้าวันนี้</th><th className="p-5 font-bold text-yellow-800 bg-yellow-100/50 border-r border-yellow-200">รวมมีของ</th><th className="p-5 font-bold text-blue-700 bg-blue-50/50 border-r border-blue-100">นับตอนเย็น</th><th className="p-5 font-bold text-gray-700 bg-gray-50/50">ถูกใช้ไป</th></tr>
+            <thead className="sticky top-0 z-30 shadow-sm">
+              <tr className="text-sm border-b border-gray-200 bg-white">
+                <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">รายการสินค้า</th>
+                <th className="p-5 font-bold text-yellow-700 bg-yellow-50/90 border-l border-yellow-100">ยอดเหลือล่าสุด</th>
+                <th className="p-5 font-bold text-yellow-700 bg-yellow-50/90">รับเข้าวันนี้</th>
+                <th className="p-5 font-bold text-yellow-800 bg-yellow-100/90 border-r border-yellow-200">รวมมีของ</th>
+                <th className="p-5 font-bold text-blue-700 bg-blue-50/90 border-r border-blue-100">นับตอนเย็น</th>
+                <th className="p-5 font-bold text-gray-700 bg-gray-50/90">ถูกใช้ไป</th>
+              </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white">
               {dashboardRows.length === 0 ? (<tr><td colSpan={6} className="p-16 text-gray-400">ยังไม่มีรายการสินค้าในระบบ</td></tr>) : (
                 Object.entries(groupedRows).map(([category, items]) => (
                   <React.Fragment key={category}>
-                    <tr className="bg-gray-100 border-y border-gray-200"><td colSpan={6} className="p-3 pl-6 text-left font-bold text-gray-800 text-sm">📂 หมวดหมู่: {category}</td></tr>
+                    <tr className="bg-gray-100 border-y border-gray-200">
+                      <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">📂 หมวดหมู่: {category}</td>
+                      <td colSpan={5} className="bg-gray-100"></td>
+                    </tr>
                     {items.map((item, idx) => (
-                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50"><td className="p-5 text-left font-bold text-gray-800">{item.name} <span className="text-xs text-gray-500 ml-1 font-normal">({item.unit})</span></td><td className="p-5 text-yellow-700 font-semibold bg-yellow-50/30 border-l border-yellow-50">{item.yesterday_balance}</td><td className="p-5 text-yellow-700 font-semibold bg-yellow-50/30">{item.incoming > 0 ? <span className="text-[#059669] font-bold">+{item.incoming}</span> : '0'}</td><td className="p-5 text-yellow-900 font-bold text-lg bg-yellow-100/30 border-r border-yellow-100">{item.totalAvailable}</td><td className="p-5 text-blue-600 font-bold text-lg bg-blue-50/30 border-r border-blue-50">{item.evening_counted !== null ? item.evening_counted : '-'}</td><td className="p-5 text-gray-600 font-semibold bg-gray-50/30">{item.usedAmount !== null ? item.usedAmount : '-'}</td></tr>
+                      <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
+                        <td className="p-5 text-left font-bold text-gray-800 sticky left-0 z-20 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                          {item.name} <span className="text-xs text-gray-500 ml-1 font-normal">({item.unit})</span>
+                        </td>
+                        <td className="p-5 text-yellow-700 font-semibold bg-yellow-50/30 border-l border-yellow-50">{item.yesterday_balance}</td>
+                        <td className="p-5 text-yellow-700 font-semibold bg-yellow-50/30">{item.incoming > 0 ? <span className="text-[#059669] font-bold">+{item.incoming}</span> : '0'}</td>
+                        <td className="p-5 text-yellow-900 font-bold text-lg bg-yellow-100/30 border-r border-yellow-100">{item.totalAvailable}</td>
+                        <td className="p-5 text-blue-600 font-bold text-lg bg-blue-50/30 border-r border-blue-50">{item.evening_counted !== null ? item.evening_counted : '-'}</td>
+                        <td className="p-5 text-gray-600 font-semibold bg-gray-50/30">{item.usedAmount !== null ? item.usedAmount : '-'}</td>
+                      </tr>
                     ))}
                   </React.Fragment>
                 ))
