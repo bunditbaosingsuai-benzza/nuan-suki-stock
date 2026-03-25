@@ -109,7 +109,7 @@ export default function HistoryPage() {
   const handleScroll = () => {
     if (!tableContainerRef.current) return;
     const container = tableContainerRef.current;
-    const scrollPosition = container.scrollTop + 60; 
+    const scrollPosition = container.scrollTop + 80; 
 
     let currentActive = '';
     for (const cat of categoriesList) {
@@ -123,7 +123,7 @@ export default function HistoryPage() {
   const scrollToCategory = (cat: string) => {
     const el = categoryRefs.current[cat];
     if (el && tableContainerRef.current) {
-      tableContainerRef.current.scrollTo({ top: el.offsetTop - 50, behavior: 'smooth' });
+      tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' });
       setActiveCategory(cat);
     }
   };
@@ -174,20 +174,19 @@ export default function HistoryPage() {
         <div 
           ref={tableContainerRef}
           onScroll={handleScroll}
-          className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30 scroll-smooth"
+          className="overflow-auto flex-1 custom-scrollbar scroll-smooth bg-gray-50/30"
         >
           {viewMode === 'daily' ? (
             <table className="w-full text-center border-collapse">
-              <thead className="sticky top-0 z-20 shadow-sm">
+              <thead className="sticky top-0 z-30 bg-white shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  {/* 🔴 เพิ่ม min-w-[140px] เพื่อไม่ให้คอลัมน์แรกโดนบีบในมือถือ */}
-                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px]">รายการสินค้า (หน่วย)</th>
-                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">เหลือเมื่อวาน</th>
-                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90">รับเข้า</th>
-                  <th className="p-4 font-bold text-yellow-800 bg-yellow-100/90">รวมมีของ</th>
-                  <th className="p-4 font-bold text-blue-700 bg-blue-50/90">นับได้ตอนเย็น</th>
-                  <th className="p-4 font-bold text-gray-700 bg-white">ถูกใช้ไป</th>
-                  <th className="p-4 font-bold text-[#df2323] bg-white">จัดการ</th>
+                  <th className="p-4 font-bold text-gray-700 text-left sticky left-0 top-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px] whitespace-nowrap">รายการสินค้า (หน่วย)</th>
+                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90 whitespace-nowrap">เหลือเมื่อวาน</th>
+                  <th className="p-4 font-bold text-yellow-700 bg-yellow-50/90 whitespace-nowrap">รับเข้า</th>
+                  <th className="p-4 font-bold text-yellow-800 bg-yellow-100/90 whitespace-nowrap">รวมมีของ</th>
+                  <th className="p-4 font-bold text-blue-700 bg-blue-50/90 whitespace-nowrap">นับได้ตอนเย็น</th>
+                  <th className="p-4 font-bold text-gray-700 bg-white whitespace-nowrap">ถูกใช้ไป</th>
+                  <th className="p-4 font-bold text-[#df2323] bg-white whitespace-nowrap">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -198,7 +197,6 @@ export default function HistoryPage() {
                         ref={(el) => { categoryRefs.current[category] = el; }} 
                         className="bg-gray-100 border-y border-gray-200"
                       >
-                        {/* 🔴 เพิ่ม whitespace-nowrap เพื่อไม่ให้หมวดหมู่ตัดขึ้นบรรทัดใหม่ */}
                         <td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
                           📂 {category}
                         </td>
@@ -216,8 +214,8 @@ export default function HistoryPage() {
                             ref={(el) => { if(index === 0) categoryRefs.current[category] = el; }}
                             className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group"
                           >
-                            <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
-                              <div className="font-bold text-gray-800 text-[15px]">{item.products?.name}</div>
+                            <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors whitespace-nowrap">
+                              <div className="text-[15px] font-bold text-gray-800">{item.products?.name}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-2">
                                 <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
                                   {item.products?.unit}
@@ -265,13 +263,12 @@ export default function HistoryPage() {
             </table>
           ) : (
             <table className="w-full text-center border-collapse">
-              <thead className="sticky top-0 z-20 shadow-sm">
+              <thead className="sticky top-0 z-30 bg-white shadow-sm">
                 <tr className="text-sm border-b border-gray-200 bg-white">
-                  {/* 🔴 เพิ่ม min-w-[140px] สำหรับตารางรายเดือน */}
-                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px]">รายการสินค้า</th>
-                  <th className="p-5 font-bold text-[#059669] bg-green-50/90">รับเข้าทั้งหมด (เดือนนี้)</th>
-                  <th className="p-5 font-bold text-[#df2323] bg-red-50/90">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
-                  <th className="p-5 font-bold text-[#2563eb] bg-blue-50/90">ยอดคงเหลือล่าสุด</th>
+                  <th className="p-5 font-bold text-gray-700 text-left sticky left-0 top-0 z-40 bg-white border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px] whitespace-nowrap">รายการสินค้า</th>
+                  <th className="p-5 font-bold text-[#059669] bg-green-50/90 whitespace-nowrap">รับเข้าทั้งหมด (เดือนนี้)</th>
+                  <th className="p-5 font-bold text-[#df2323] bg-red-50/90 whitespace-nowrap">ถูกใช้ไปทั้งหมด (เดือนนี้)</th>
+                  <th className="p-5 font-bold text-[#2563eb] bg-blue-50/90 whitespace-nowrap">ยอดคงเหลือล่าสุด</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -294,7 +291,7 @@ export default function HistoryPage() {
                           ref={(el) => { if(index === 0) categoryRefs.current[category] = el; }}
                           className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group"
                         >
-                          <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors">
+                          <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors whitespace-nowrap">
                             <div className="font-bold text-gray-800 text-[15px]">{item.name}</div>
                             <div className="flex flex-wrap items-center gap-1.5 mt-2">
                               <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
