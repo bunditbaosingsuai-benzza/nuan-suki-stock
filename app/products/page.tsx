@@ -27,10 +27,10 @@ export default function ProductsPage() {
   const [hideUsed, setHideUsed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // State สำหรับ Popup เลือกหมวดหมู่ และ หน่วยนับ
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
-  const [newCategoryInput, setNewCategoryInput] = useState('')
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false)
-  const [newUnitInput, setNewUnitInput] = useState('')
+  const [modalTarget, setModalTarget] = useState<'add' | 'edit'>('add')
 
   const [editingProductId, setEditingProductId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
@@ -138,6 +138,24 @@ export default function ProductsPage() {
     }
   };
 
+  const handleSelectCategory = (cat: string) => {
+    if (modalTarget === 'add') {
+      setCategoryName(cat);
+    } else {
+      setEditCategoryName(cat);
+    }
+    setIsCategoryModalOpen(false);
+  }
+
+  const handleSelectUnit = (u: string) => {
+    if (modalTarget === 'add') {
+      setUnit(u);
+    } else {
+      setEditUnit(u);
+    }
+    setIsUnitModalOpen(false);
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
@@ -154,13 +172,13 @@ export default function ProductsPage() {
           </div>
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-bold text-gray-700 mb-2">หมวดหมู่</label>
-            <div onClick={() => setIsCategoryModalOpen(true)} className={`w-full border rounded-xl p-3 cursor-pointer transition-colors text-sm sm:text-base flex justify-between items-center ${categoryName ? 'border-[#df2323] bg-white text-gray-900 font-bold' : 'border-[#df2323] bg-white text-gray-400'}`}>
+            <div onClick={() => { setModalTarget('add'); setIsCategoryModalOpen(true); }} className={`w-full border rounded-xl p-3 cursor-pointer transition-colors text-sm sm:text-base flex justify-between items-center ${categoryName ? 'border-[#df2323] bg-white text-gray-900 font-bold' : 'border-[#df2323] bg-white text-gray-400'}`}>
               <span>{categoryName || 'เลือกหมวดหมู่...'}</span><span className="text-gray-400 text-xs">▼</span>
             </div>
           </div>
           <div className="flex-1 min-w-[150px]">
             <label className="block text-sm font-bold text-gray-700 mb-2">หน่วยนับ</label>
-            <div onClick={() => setIsUnitModalOpen(true)} className={`w-full border rounded-xl p-3 cursor-pointer transition-colors text-sm sm:text-base flex justify-between items-center ${unit ? 'border-[#df2323] bg-white text-gray-900 font-bold' : 'border-[#df2323] bg-white text-gray-400'}`}>
+            <div onClick={() => { setModalTarget('add'); setIsUnitModalOpen(true); }} className={`w-full border rounded-xl p-3 cursor-pointer transition-colors text-sm sm:text-base flex justify-between items-center ${unit ? 'border-[#df2323] bg-white text-gray-900 font-bold' : 'border-[#df2323] bg-white text-gray-400'}`}>
               <span>{unit || 'เลือกหน่วยนับ...'}</span><span className="text-gray-400 text-xs">▼</span>
             </div>
           </div>
@@ -190,7 +208,7 @@ export default function ProductsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
-        <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center">
+        <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-50 shadow-sm p-2 gap-2 px-4 items-center">
           {Object.keys(groupedProducts).map(cat => (
             <button 
               key={cat}
@@ -226,31 +244,45 @@ export default function ProductsPage() {
                         {editingProductId === product.id ? (
                           <>
                             <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors whitespace-nowrap">
-                              <input type="text" className="w-full border-2 border-blue-400 rounded-lg p-2 font-bold focus:outline-none mb-2" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                              <div className="flex gap-2">
-                                <input type="text" className="w-1/3 border-2 border-blue-200 rounded-lg p-2 text-xs focus:outline-none" placeholder="หมวดหมู่..." value={editCategoryName} onChange={(e) => setEditCategoryName(e.target.value)} />
-                                <input type="text" className="w-1/3 border-2 border-blue-200 rounded-lg p-2 text-xs text-center focus:outline-none" placeholder="หน่วยนับ..." value={editUnit} onChange={(e) => setEditUnit(e.target.value)} />
-                                <label className="flex items-center justify-center gap-1.5 cursor-pointer bg-red-50 px-2 py-1 rounded-lg border border-red-100 w-1/3">
+                              <input type="text" className="w-full border-2 border-blue-400 rounded-lg p-2.5 font-bold focus:outline-none mb-3 text-[15px]" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                              <div className="flex gap-2 items-center">
+                                {/* ปุ่มเลือกหมวดหมู่ */}
+                                <div onClick={() => { setModalTarget('edit'); setIsCategoryModalOpen(true); }} className="flex-1 border-2 border-blue-200 rounded-lg p-2 text-xs cursor-pointer bg-white flex justify-between items-center text-gray-700">
+                                  <span className="font-semibold text-indigo-700">{editCategoryName || 'เลือกหมวดหมู่...'}</span><span className="text-blue-300">▼</span>
+                                </div>
+                                {/* สวิตช์ซ่อนยอดใช้ไป */}
+                                <label className="flex items-center justify-center gap-1.5 cursor-pointer bg-red-50 px-2 py-2 rounded-lg border border-red-100">
                                   <input type="checkbox" checked={editHideUsed} onChange={(e) => setEditHideUsed(e.target.checked)} className="w-3.5 h-3.5 text-[#df2323] rounded focus:ring-[#df2323]" />
                                   <span className="text-[10px] font-bold text-red-600">ซ่อนยอด</span>
                                 </label>
                               </div>
                             </td>
-                            <td className="p-3"><input type="text" className="w-20 border-2 border-blue-400 rounded-lg p-2 text-center focus:outline-none" value={editUnit} onChange={(e) => setEditUnit(e.target.value)} /></td>
+                            {/* ปุ่มเลือกหน่วยนับ */}
                             <td className="p-3">
-                              <select value={editRawMaterialId} onChange={(e) => setEditRawMaterialId(e.target.value)} className="w-full border-2 border-blue-300 bg-blue-50 rounded-lg p-2 text-sm focus:outline-none text-gray-700">
+                              <div onClick={() => { setModalTarget('edit'); setIsUnitModalOpen(true); }} className="w-20 mx-auto border-2 border-blue-400 rounded-lg p-2.5 text-center cursor-pointer bg-white text-gray-700 text-sm font-semibold">
+                                {editUnit || 'หน่วย...'}
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <select value={editRawMaterialId} onChange={(e) => setEditRawMaterialId(e.target.value)} className="w-full border-2 border-blue-300 bg-blue-50 rounded-lg p-2.5 text-sm focus:outline-none text-gray-700 font-semibold">
                                 <option value="">-- ไม่ผูก --</option>
                                 {rawMaterialOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
                             </td>
-                            <td className="p-3 flex gap-2 justify-center">
-                              <input type="number" step="any" className="w-16 border-2 border-blue-400 rounded-lg p-2 text-center text-[#3b82f6] focus:outline-none" placeholder="Max" value={editMaxLimit} onChange={(e) => setEditMaxLimit(e.target.value)} />
-                              <input type="number" step="any" className="w-16 border-2 border-[#df2323] rounded-lg p-2 text-center text-[#df2323] focus:outline-none" placeholder="Min" value={editMinLimit} onChange={(e) => setEditMinLimit(e.target.value)} />
+                            <td className="p-3 flex gap-2 justify-center items-center h-full">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] text-gray-500 font-semibold">Max</span>
+                                <input type="number" step="any" className="w-16 border-2 border-blue-400 rounded-lg p-2 text-center text-[#3b82f6] font-bold focus:outline-none" placeholder="Max" value={editMaxLimit} onChange={(e) => setEditMaxLimit(e.target.value)} />
+                              </div>
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] text-gray-500 font-semibold">Min</span>
+                                <input type="number" step="any" className="w-16 border-2 border-[#df2323] rounded-lg p-2 text-center text-[#df2323] font-bold focus:outline-none" placeholder="Min" value={editMinLimit} onChange={(e) => setEditMinLimit(e.target.value)} />
+                              </div>
                             </td>
                             <td className="p-3 text-right">
-                              <div className="flex flex-col gap-1 items-end">
-                                <button onClick={() => handleSaveProduct(product.id)} className="bg-blue-600 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold w-16">บันทึก</button>
-                                <button onClick={() => setEditingProductId(null)} className="bg-gray-200 text-gray-600 text-[11px] px-3 py-1.5 rounded-lg font-bold w-16">ยกเลิก</button>
+                              <div className="flex flex-col gap-1.5 items-end justify-center h-full">
+                                <button onClick={() => handleSaveProduct(product.id)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-4 py-2 rounded-lg font-bold w-full transition-colors shadow-sm">บันทึก</button>
+                                <button onClick={() => setEditingProductId(null)} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[11px] px-4 py-2 rounded-lg font-bold w-full transition-colors">ยกเลิก</button>
                               </div>
                             </td>
                           </>
@@ -259,7 +291,7 @@ export default function ProductsPage() {
                             <td className="p-4 text-left sticky left-0 z-10 bg-white group-hover:bg-gray-50/80 border-r border-gray-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] transition-colors whitespace-nowrap">
                               <div className="font-bold text-gray-800 text-[15px]">{product.name}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">{product.unit}</span>
+                                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">{generateItemCode(product.id)}</span>
                                 {product.hide_used && <span className="text-[10px] font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100 shadow-sm">🚫 ซ่อนยอด</span>}
                               </div>
                             </td>
@@ -284,7 +316,6 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Popups โค้ดเดิมคงไว้ ไม่ได้เปลี่ยนแปลง... */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center">
@@ -298,6 +329,7 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {/* 🔴 Modal เลือกหมวดหมู่ (เอาส่วนสร้างใหม่ออก) */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-gray-200">
@@ -306,20 +338,12 @@ export default function ProductsPage() {
               <button onClick={() => setIsCategoryModalOpen(false)} className="bg-white/20 hover:bg-white/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
             </div>
             <div className="p-6">
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 shadow-sm">
+              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                 <p className="text-sm font-bold text-gray-700 mb-4">หมวดหมู่ที่มีอยู่ในระบบ:</p>
                 <div className="flex flex-wrap gap-2.5">
                   {categoriesList.length === 0 ? <span className="text-sm text-gray-400">ยังไม่มีหมวดหมู่ในระบบ</span> : categoriesList.map(cat => (
-                    <button key={cat} onClick={() => { setCategoryName(cat); setIsCategoryModalOpen(false); }} className="px-4 py-2 border border-gray-200 rounded-xl text-gray-700 hover:border-[#4f46e5] hover:text-[#4f46e5] hover:bg-indigo-50 font-bold bg-white shadow-sm transition-all text-sm">{cat}</button>
+                    <button key={cat} onClick={() => handleSelectCategory(cat)} className="px-4 py-2 border border-gray-200 rounded-xl text-gray-700 hover:border-[#4f46e5] hover:text-[#4f46e5] hover:bg-indigo-50 font-bold bg-white shadow-sm transition-all text-sm">{cat}</button>
                   ))}
-                </div>
-              </div>
-              <p className="text-sm font-bold text-gray-700 mb-3">สร้างหมวดหมู่ใหม่</p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input type="text" value={newCategoryInput} onChange={(e) => setNewCategoryInput(e.target.value)} placeholder="พิมพ์หมวดหมู่ใหม่..." className="flex-1 border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] font-medium" />
-                <div className="flex gap-2">
-                  <button onClick={() => setNewCategoryInput('')} className="bg-[#df2323] hover:bg-[#b91c1c] text-white font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition-colors"><span className="text-lg leading-none">⛔</span> ลบ</button>
-                  <button onClick={() => { if(newCategoryInput.trim()) { setCategoryName(newCategoryInput.trim()); setIsCategoryModalOpen(false); setNewCategoryInput(''); } }} className="bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition-colors"><span className="text-lg leading-none">➕</span> เพิ่ม</button>
                 </div>
               </div>
             </div>
@@ -327,6 +351,7 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {/* 🔴 Modal เลือกหน่วยนับ (เอาส่วนสร้างใหม่ออก) */}
       {isUnitModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-gray-200">
@@ -335,20 +360,12 @@ export default function ProductsPage() {
               <button onClick={() => setIsUnitModalOpen(false)} className="bg-white/20 hover:bg-white/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
             </div>
             <div className="p-6">
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 shadow-sm">
+              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                 <p className="text-sm font-bold text-gray-700 mb-4">หน่วยนับที่มีอยู่ในระบบ:</p>
                 <div className="flex flex-wrap gap-2.5">
                   {uniqueUnits.length === 0 ? <span className="text-sm text-gray-400">ยังไม่มีหน่วยนับในระบบ</span> : uniqueUnits.map(u => (
-                    <button key={u} onClick={() => { setUnit(u); setIsUnitModalOpen(false); }} className="px-4 py-2 border border-gray-200 rounded-xl text-gray-700 hover:border-[#059669] hover:text-[#059669] hover:bg-emerald-50 font-bold bg-white shadow-sm transition-all text-sm">{u}</button>
+                    <button key={u} onClick={() => handleSelectUnit(u)} className="px-4 py-2 border border-gray-200 rounded-xl text-gray-700 hover:border-[#059669] hover:text-[#059669] hover:bg-emerald-50 font-bold bg-white shadow-sm transition-all text-sm">{u}</button>
                   ))}
-                </div>
-              </div>
-              <p className="text-sm font-bold text-gray-700 mb-3">สร้างหน่วยนับใหม่</p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input type="text" value={newUnitInput} onChange={(e) => setNewUnitInput(e.target.value)} placeholder="พิมพ์หน่วยนับใหม่..." className="flex-1 border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#059669] font-medium" />
-                <div className="flex gap-2">
-                  <button onClick={() => setNewUnitInput('')} className="bg-[#df2323] hover:bg-[#b91c1c] text-white font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition-colors"><span className="text-lg leading-none">⛔</span> ลบ</button>
-                  <button onClick={() => { if(newUnitInput.trim()) { setUnit(newUnitInput.trim()); setIsUnitModalOpen(false); setNewUnitInput(''); } }} className="bg-[#059669] hover:bg-[#047857] text-white font-bold px-5 py-3 rounded-xl flex items-center gap-2 transition-colors"><span className="text-lg leading-none">➕</span> เพิ่ม</button>
                 </div>
               </div>
             </div>

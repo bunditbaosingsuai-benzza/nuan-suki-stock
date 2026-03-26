@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [usedFilter, setUsedFilter] = useState('ทั้งหมด')
 
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   // 🔴 State สำหรับ Popup เลือกหมวดหมู่
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -77,6 +78,7 @@ export default function DashboardPage() {
     const totalAvailable = Number((yBalance + incoming).toFixed(1));
     const usedAmount = (eveningCounted !== null && !product.hide_used) ? Number((totalAvailable - eveningCounted).toFixed(1)) : null;
 
+    
     return {
       ...product,
       categoryName: product.categories?.name || 'ไม่มีหมวดหมู่',
