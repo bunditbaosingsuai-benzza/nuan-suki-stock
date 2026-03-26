@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
-
 export async function POST(request: Request) {
   try {
+    // 🔴 ย้ายการเรียก Supabase เข้ามาไว้ข้างในฟังก์ชัน
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
     const { email, password, role, branch_id } = await request.json();
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
@@ -28,12 +28,16 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    // 🔴 ย้ายการเรียก Supabase เข้ามาไว้ข้างในฟังก์ชันเช่นกัน
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
     const { id } = await request.json();
     
-    // 🔴 แก้ไข: ต้องลบในตาราง profiles ก่อน เพื่อไม่ให้ติดเรื่อง Foreign Key
     await supabaseAdmin.from('profiles').delete().eq('id', id);
-
-    // 🔴 หลังจากนั้นค่อยลบ User ออกจากระบบ Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
     if (error) throw error;
     
