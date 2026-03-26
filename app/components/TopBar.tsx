@@ -1,46 +1,47 @@
 'use client'
 
 import { useSidebar } from '../context/SidebarContext'
+import BranchSelector from './BranchSelector'
+import { useUser } from '../context/UserContext'
 
 export default function TopBar() {
-  const { setIsOpen } = useSidebar() // 🔴 ดึงฟังก์ชันเปิดเมนูมาใช้
+  const { setIsOpen } = useSidebar()
+  const { profile } = useUser()
+
+  const getInitial = (name: string | null | undefined) => {
+    if (!name) return '?';
+    return name.charAt(0).toUpperCase();
+  }
 
   return (
-    <div className="h-16 md:h-20 w-full bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 transition-all shadow-sm">
+    <div className="h-16 md:h-20 w-full bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0 z-[100] relative transition-all shadow-sm">
       
-      <div className="flex items-center flex-1 gap-3 md:gap-4 max-w-3xl">
-        {/* 🔴 ปุ่มแฮมเบอร์เกอร์ (โชว์แค่มือถือ/แท็บเล็ตเล็ก) */}
-        <button 
-          onClick={() => setIsOpen(true)}
-          className="md:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 focus:outline-none rounded-lg hover:bg-gray-50"
-        >
+      <div className="flex items-center flex-1 gap-2 md:gap-4 min-w-0">
+        <button onClick={() => setIsOpen(true)} className="md:hidden p-1.5 -ml-1 text-gray-600 hover:text-gray-900 focus:outline-none rounded-lg hover:bg-gray-50 flex-shrink-0">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
 
-        {/* ช่องค้นหา */}
-        <div className="flex-1 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 md:pl-4 flex items-center pointer-events-none">
-            <svg className="h-4 w-4 md:h-5 md:w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          {/* รูปโปรไฟล์: มือถือ 32px (w-8), คอม 40px (w-10) */}
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#df2323] text-white flex items-center justify-center font-bold text-sm md:text-xl shadow-sm border-2 border-white flex-shrink-0">
+            {getInitial(profile?.full_name)}
           </div>
-          <input
-            type="text"
-            placeholder="ค้นหารายการ..."
-            className="block w-full pl-9 md:pl-12 pr-4 py-2 md:py-3 text-sm md:text-base border border-gray-200 rounded-full text-gray-700 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors bg-white shadow-inner"
-          />
+          <div className="flex flex-col min-w-0">
+            {/* ชื่อ/อีเมล: มือถือตัวเล็กและตัดคำถ้ายาวเกิน 110px */}
+            <span className="text-gray-900 font-bold text-xs md:text-base truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
+              {profile?.full_name || 'กำลังโหลด...'}
+            </span>
+            <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full w-fit mt-0.5 md:mt-0 truncate ${profile?.role === 'manager' ? 'bg-red-100 text-[#df2323]' : 'bg-gray-100 text-gray-600'}`}>
+              {profile?.role === 'manager' ? 'ผู้จัดการ' : 'พนักงาน'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* กระดิ่งแจ้งเตือน */}
-      <div className="ml-3 md:ml-4 flex items-center">
-        <button className="bg-gray-50 p-2 md:p-3 rounded-xl text-gray-600 hover:text-gray-800 border border-gray-200 shadow-sm transition-colors relative">
-          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-          </svg>
-          <span className="absolute top-0 right-0 block h-2 md:h-2.5 w-2 md:w-2.5 rounded-full ring-2 ring-white bg-red-600"></span>
-        </button>
+      <div className="ml-2 flex items-center flex-shrink-0">
+        <BranchSelector />
       </div>
+
     </div>
   )
 }
