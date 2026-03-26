@@ -40,6 +40,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
+  // 🛡️ 3. [NEW] เช็คสิทธิ์การเข้าถึงหน้าเฉพาะผู้จัดการ (RBAC)
+  if (user) {
+    const pathname = request.nextUrl.pathname;
+    
+    // ระบุหน้าเว็บที่ "ห้าม" พนักงานทั่วไปเข้า (ต้องเป็น Manager เท่านั้น)
+    const managerOnlyPages = ['/members', '/products'];
+
+    // ถ้าพยายามเข้าหน้าในลิสต์ข้างบน
+    if (managerOnlyPages.some(page => pathname.startsWith(page))) {
+      // ดึงสิทธิ์ (Role) จากตาราง profiles แบบด่วนๆ เพื่อความแม่นยำ 100%
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      // ถ้าไม่ใช่ผู้จัดการ ให้เตะกลับไปหน้า Dashboard ทันที
+      if (profile?.role !== 'manager') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    }
+  }
+
   return supabaseResponse
 }
 
