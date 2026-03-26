@@ -11,7 +11,6 @@ export default function HistoryPage() {
   const { currentBranch } = useBranch()
 
   const [historyData, setHistoryData] = useState<HistoryItem[]>([])
-  // 🔴 เปลี่ยนมาใช้ Date Picker แบบเดียวกับ Dashboard
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
   
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -27,7 +26,6 @@ export default function HistoryPage() {
   const fetchHistory = async () => {
     if (!currentBranch || !selectedDate) return;
     
-    // ดึงข้อมูลเฉพาะวันที่เลือก และสาขาที่เลือก
     const { data } = await supabase
       .from('daily_stock_checks')
       .select('*, products(name, unit, hide_used, min_limit, max_limit, raw_material_id, categories(name))')
@@ -38,7 +36,6 @@ export default function HistoryPage() {
     if (data) setHistoryData(data as HistoryItem[])
   }
 
-  // 🔴 โหลดข้อมูลใหม่ทุกครั้งที่เปลี่ยนวันที่ หรือเปลี่ยนสาขา
   useEffect(() => { 
     if(currentBranch) fetchHistory(); 
     categoryRefs.current = {}; 
@@ -63,7 +60,6 @@ export default function HistoryPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
       
-      {/* 🔴 ส่วนหัว: เปลี่ยนเป็นปฏิทิน */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">
           ประวัติการทำรายการ <span className="text-gray-500 text-lg ml-2">({currentBranch.name})</span>
@@ -80,12 +76,10 @@ export default function HistoryPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
-        {/* แถบหมวดหมู่ */}
         <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center">
           {categoriesList.map(cat => (<button key={cat} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>{cat}</button>))}
         </div>
 
-        {/* ตารางข้อมูล */}
         <div ref={tableContainerRef} onScroll={handleScroll} className="overflow-auto flex-1 custom-scrollbar scroll-smooth bg-gray-50/30">
           <table className="w-full text-center border-collapse">
             <thead className="sticky top-0 z-30 shadow-sm">
@@ -118,7 +112,6 @@ export default function HistoryPage() {
                       const used = (item.evening_counted !== null && !item.products?.hide_used) ? Number((total - item.evening_counted).toFixed(1)) : '-';
                       const isEditing = editingId === item.id
 
-                      // 🔴 ระบบคำนวณของเหยา
                       let totalCombinedStock = item.evening_counted !== null ? item.evening_counted : total;
                       let hasLinkedItems = false;
 
