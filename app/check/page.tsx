@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useBranch } from '../context/BranchContext' // 🔴 เรียกใช้ Context
+import { useBranch } from '../context/BranchContext' 
 
 interface Product { id: number; name: string; unit: string; min_limit: number | null; max_limit: number | null; hide_used: boolean | null; raw_material_id: number | null; categories?: { name: string } | null; }
 interface DailyCheck { id: number; product_id: number; check_date: string; yesterday_balance: number; incoming: number; evening_counted: number | null; }
 
 export default function DailyCheckPage() {
-  const { currentBranch } = useBranch() // 🔴 ดึงสาขาปัจจุบัน
+  const { currentBranch } = useBranch() 
 
   const [products, setProducts] = useState<Product[]>([])
   const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
@@ -36,8 +36,7 @@ export default function DailyCheckPage() {
   const todayForDB = today.toLocaleDateString('en-CA')
 
   const fetchData = async () => {
-    if (!currentBranch) return; // 🔴 ป้องกันโหลดผิดสาขา
-    // 🔴 แนบ eq('branch_id') ทุกๆ ข้อมูลที่ดึง
+    if (!currentBranch) return; 
     const { data: pData } = await supabase.from('products').select('*, categories(name)').eq('branch_id', currentBranch.id).order('id', { ascending: true })
     if (pData) setProducts(pData as Product[])
 
@@ -50,7 +49,6 @@ export default function DailyCheckPage() {
     setLatestPastChecks(latestMap)
   }
 
-  // 🔴 โหลดใหม่เมื่อเปลี่ยนสาขา
   useEffect(() => { if (currentBranch) fetchData() }, [currentBranch])
 
   const tableRows = products.map(product => {
@@ -76,7 +74,6 @@ export default function DailyCheckPage() {
     if (!currentBranch) return alert('ไม่พบข้อมูลสาขา')
     setIsSubmitting(true)
     try {
-      // 🔴 แนบ branch_id ไปตอนบันทึกด้วย
       const { error } = await supabase.from('daily_stock_checks').upsert({ product_id: parseInt(selectedProductId), check_date: todayForDB, yesterday_balance: yesterdayBalance ? parseFloat(yesterdayBalance) : 0, incoming: incoming ? parseFloat(incoming) : 0, branch_id: currentBranch.id }, { onConflict: 'check_date, product_id' })
       if (error) throw error
       setSelectedProductId(''); setSelectedProductName(''); setYesterdayBalance(''); setIncoming('')
@@ -96,7 +93,24 @@ export default function DailyCheckPage() {
     if (!currentBranch) return;
     try {
       const { error } = await supabase.from('daily_stock_checks').upsert({ product_id: productId, check_date: todayForDB, yesterday_balance: currentYestBal, incoming: currentInc, evening_counted: editEveningCount === '' ? null : parseFloat(editEveningCount), branch_id: currentBranch.id }, { onConflict: 'check_date, product_id' })
-      if (error) throw error; setEditingEveningId(null); fetchData()
+      if (error) throw error; 
+      
+      // อัปเดตยอดยกมาของวันพรุ่งนี้ด้วย
+      const newEve = editEveningCount === '' ? null : parseFloat(editEveningCount);
+      if (newEve !== null) {
+        const currentDate = new Date();
+        currentDate.setDate(currentDate.getDate() + 1);
+        const nextDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
+        await supabase.from('daily_stock_checks').upsert({
+          product_id: productId,
+          check_date: nextDateStr,
+          yesterday_balance: newEve,
+          branch_id: currentBranch.id
+        }, { onConflict: 'check_date, product_id' });
+      }
+      
+      setEditingEveningId(null); fetchData()
     } catch (error: any) { alert('❌ อัปเดตไม่สำเร็จ: ' + error.message) }
   }
 
@@ -139,15 +153,31 @@ export default function DailyCheckPage() {
                     <React.Fragment key={category}>
                       <tr ref={(el) => { categoryRefs.current[category] = el; }} className="bg-gray-100 border-y border-gray-200"><td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">📂 {category}</td><td colSpan={6} className="bg-gray-100"></td></tr>
                       {items.map((item) => {
+                        // 🔴 เพิ่มระบบ .toFixed() ตัดปัญหาเลข .99999
                         const totalAvailable = Number((item.yesterday_balance + item.incoming).toFixed(1));
                         const eveningCounted = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-';
                         const usedAmount = (item.evening_counted !== null && !item.hide_used) ? Number((totalAvailable - item.evening_counted).toFixed(1)) : '-';
+                        
                         let totalCombinedStock = item.evening_counted !== null ? item.evening_counted : totalAvailable;
                         let hasLinkedItems = false;
                         const linkedItems = tableRows.filter(r => r.raw_material_id === item.id);
-                        if (linkedItems.length > 0) { hasLinkedItems = true; linkedItems.forEach(linked => { const linkedStock = linked.evening_counted !== null ? linked.evening_counted : (linked.yesterday_balance + linked.incoming); totalCombinedStock += linkedStock; }); }
+                        if (linkedItems.length > 0) { 
+                          hasLinkedItems = true; 
+                          linkedItems.forEach(linked => { 
+                            const linkedStock = linked.evening_counted !== null ? linked.evening_counted : (linked.yesterday_balance + linked.incoming); 
+                            totalCombinedStock += linkedStock; 
+                          }); 
+                        }
+                        
+                        // 🔴 ตัดทศนิยมของเหยา แล้วปัดเศษขึ้น
+                        totalCombinedStock = Number(totalCombinedStock.toFixed(1));
                         let orderAmount: number | string = '-'; let needsOrder = false;
-                        if (item.evening_counted !== null && item.min_limit !== null && item.max_limit !== null) { if (totalCombinedStock <= item.min_limit) { orderAmount = Number((item.max_limit - totalCombinedStock).toFixed(1)); needsOrder = orderAmount > 0; } else { orderAmount = 0; } }
+                        if (item.evening_counted !== null && item.min_limit !== null && item.max_limit !== null) { 
+                          if (totalCombinedStock <= item.min_limit) { 
+                            orderAmount = Math.ceil(item.max_limit - totalCombinedStock); 
+                            needsOrder = orderAmount > 0; 
+                          } else { orderAmount = 0; } 
+                        }
 
                         return (
                           <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors group">
