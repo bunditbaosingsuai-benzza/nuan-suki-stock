@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import SendReportModal from '../components/SendReportModal'
-import { useBranch } from '../context/BranchContext' // 🔴 1. เรียกใช้ Context
+import { useBranch } from '../context/BranchContext'
 
 interface Category { name: string; }
 interface Product { id: number; name: string; unit: string; min_limit: number | null; max_limit: number | null; raw_material_id: number | null; hide_used: boolean | null; categories?: Category | null; }
 interface DailyCheck { id: number; product_id: number; check_date: string; yesterday_balance: number; incoming: number; evening_counted: number | null; }
 
 export default function DashboardPage() {
-  const { currentBranch } = useBranch() // 🔴 2. ดึงสาขาปัจจุบัน
+  const { currentBranch } = useBranch() 
 
   const [products, setProducts] = useState<Product[]>([])
   const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
@@ -28,10 +28,9 @@ export default function DashboardPage() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   const fetchData = async () => {
-    if (!currentBranch) return; // 🔴 ป้องกันการโหลดก่อนรู้สาขา
+    if (!currentBranch) return; 
     setIsLoading(true)
 
-    // 🔴 3. แนบ .eq('branch_id', currentBranch.id) เข้าไปทุกครั้งที่ดึงข้อมูล
     const { data: pData } = await supabase.from('products').select('*, categories(name)').eq('branch_id', currentBranch.id).order('id', { ascending: true })
     if (pData) setProducts(pData as Product[])
 
@@ -46,7 +45,7 @@ export default function DashboardPage() {
     setIsLoading(false)
   }
 
-  useEffect(() => { if (currentBranch) fetchData() }, [selectedDate, currentBranch]) // 🔴 โหลดใหม่เมื่อเปลี่ยนสาขา
+  useEffect(() => { if (currentBranch) fetchData() }, [selectedDate, currentBranch]) 
 
   const dashboardRows = products.map(product => {
     const tCheck = todayChecks.find(c => c.product_id === product.id)
@@ -69,7 +68,13 @@ export default function DashboardPage() {
       let totalCombinedStock = row.evening_counted;
       const linkedPrepItems = dashboardRows.filter(p => p.raw_material_id === row.id);
       linkedPrepItems.forEach(prepItem => { totalCombinedStock += (prepItem.evening_counted !== null ? prepItem.evening_counted : prepItem.totalAvailable); });
-      if (totalCombinedStock <= row.min_limit) { orderAmount = Number((row.max_limit - totalCombinedStock).toFixed(1)); needsOrder = orderAmount > 0; } else { orderAmount = 0; }
+      
+      // 🔴 ตัดทศนิยมของเหยาเพื่อกันพลาด แล้วปัดขึ้นเสมอ
+      totalCombinedStock = Number(totalCombinedStock.toFixed(1));
+      if (totalCombinedStock <= row.min_limit) { 
+        orderAmount = Math.ceil(row.max_limit - totalCombinedStock); 
+        needsOrder = orderAmount > 0; 
+      } else { orderAmount = 0; }
     }
     return { name: row.name, category: row.categoryName, unit: row.unit, yesterday: row.yesterday_balance, incoming: row.incoming, evening: row.evening_counted !== null ? row.evening_counted : '-', used: row.usedAmount !== null ? row.usedAmount : '-', orderAmount: needsOrder ? `+${orderAmount}` : (orderAmount === 0 ? '-' : '-'), needsOrder: needsOrder };
   });
@@ -131,7 +136,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-8">
             <div className="bg-white rounded-2xl shadow-sm border border-[#fecaca] overflow-hidden flex flex-col h-[400px]">
               <div className="bg-[#e11d48] p-4 px-6 text-white font-bold flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">🛒 สรุปสั่งของประจำวัน</div><div className="flex items-center gap-2"><button onClick={() => openFilterModal('order')} className="text-xs bg-[#be123c] text-white border border-white/20 rounded-full py-1.5 px-4 focus:outline-none shadow-inner font-medium cursor-pointer hover:bg-[#a40f32] transition-colors flex items-center gap-1.5"><span>{orderFilter}</span><span className="text-[10px]">▼</span></button><div className="text-xs bg-[#be123c] px-3 py-1.5 rounded-full">{filteredOrderItems.length} รายการ</div></div></div>
-              <div className="overflow-y-auto flex-1 custom-scrollbar"><table className="w-full text-center border-collapse"><thead className="sticky top-0 bg-white shadow-sm"><tr className="text-sm border-b border-gray-100"><th className="p-4 text-left font-bold text-gray-700">ชื่อสินค้ารายการ</th><th className="p-4 font-bold text-gray-700">เหลืออยู่</th><th className="p-4 font-bold text-[#e11d48] bg-red-50/50">ต้องสั่งเพิ่ม</th></tr></thead><tbody>{filteredOrderItems.length === 0 ? (<tr><td colSpan={3} className="p-12 text-gray-400">✅ ไม่มีสินค้าที่ต้องสั่งเพิ่มในหมวดนี้</td></tr>) : (filteredOrderItems.map((item, idx) => (<tr key={idx} className="border-b border-gray-50 hover:bg-red-50/30"><td className="p-4 text-left"><div className="font-bold text-gray-800">{item.name}</div><div className="flex gap-1 mt-1"><span className="text-[10px] font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-md">🏷️ {item.category}</span></div></td><td className="p-4"><div className="font-bold text-gray-700 text-lg">{item.currentStock}</div><div className="text-xs text-gray-500">{item.unit}</div></td><td className="p-4 bg-red-50/50"><div className="font-bold text-[#df2323] text-2xl">+{item.orderAmount}</div><div className="text-xs text-[#df2323]">{item.unit}</div></td></tr>)))}</tbody></table></div>
+              <div className="overflow-y-auto flex-1 custom-scrollbar"><table className="w-full text-center border-collapse"><thead className="sticky top-0 bg-white shadow-sm"><tr className="text-sm border-b border-gray-100"><th className="p-4 text-left font-bold text-gray-700">ชื่อสินค้ารายการ</th><th className="p-4 font-bold text-gray-700">เหลืออยู่</th><th className="p-4 font-bold text-[#e11d48] bg-red-50/50">ต้องสั่งเพิ่ม</th></tr></thead><tbody>{filteredOrderItems.length === 0 ? (<tr><td colSpan={3} className="p-12 text-gray-400">✅ ไม่มีสินค้าที่ต้องสั่งเพิ่มในหมวดนี้</td></tr>) : (filteredOrderItems.map((item, idx) => (<tr key={idx} className="border-b border-gray-50 hover:bg-red-50/30"><td className="p-4 text-left"><div className="font-bold text-gray-800">{item.name}</div><div className="flex gap-1 mt-1"><span className="text-[10px] font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-md">🏷️ {item.category}</span></div></td><td className="p-4"><div className="font-bold text-gray-700 text-lg">{item.currentStock}</div><div className="text-xs text-gray-500">{item.unit}</div></td><td className="p-4 bg-red-50/50"><div className="font-bold text-[#df2323] text-2xl">{item.orderAmount}</div><div className="text-xs text-[#df2323]">{item.unit}</div></td></tr>)))}</tbody></table></div>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-[#a7f3d0] overflow-hidden flex flex-col h-[400px]">
               <div className="bg-[#059669] p-4 px-6 text-white font-bold flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2">📦 รายการของเข้า</div><div className="flex items-center gap-2"><button onClick={() => openFilterModal('incoming')} className="text-xs bg-[#047857] text-white border border-white/20 rounded-full py-1.5 px-4 focus:outline-none shadow-inner font-medium cursor-pointer hover:bg-[#065f46] transition-colors flex items-center gap-1.5"><span>{incomingFilter}</span><span className="text-[10px]">▼</span></button><div className="text-xs bg-[#065f46] px-3 py-1.5 rounded-full">{filteredIncomingItems.length} รายการ</div></div></div>

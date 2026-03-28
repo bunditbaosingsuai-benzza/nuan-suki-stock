@@ -25,7 +25,6 @@ export default function HistoryPage() {
 
   const fetchHistory = async () => {
     if (!currentBranch || !selectedDate) return;
-    
     const { data } = await supabase
       .from('daily_stock_checks')
       .select('*, products(name, unit, hide_used, min_limit, max_limit, raw_material_id, categories(name))')
@@ -43,9 +42,38 @@ export default function HistoryPage() {
 
   const handleSaveEdit = async (id: number) => {
     try {
-      const { error } = await supabase.from('daily_stock_checks').update({ yesterday_balance: editYest === '' ? 0 : parseFloat(editYest), incoming: editInc === '' ? 0 : parseFloat(editInc), evening_counted: editEve === '' ? null : parseFloat(editEve) }).eq('id', id)
+      const itemToEdit = historyData.find(item => item.id === id);
+      if (!itemToEdit || !currentBranch) return;
+
+      const newYest = editYest === '' ? 0 : parseFloat(editYest);
+      const newInc = editInc === '' ? 0 : parseFloat(editInc);
+      const newEve = editEve === '' ? null : parseFloat(editEve);
+
+      const { error } = await supabase.from('daily_stock_checks').update({ 
+        yesterday_balance: newYest, 
+        incoming: newInc, 
+        evening_counted: newEve 
+      }).eq('id', id)
+      
       if (error) throw error
-      setEditingId(null); fetchHistory(); setSuccessModal(true)
+
+      if (newEve !== null) {
+        const parts = itemToEdit.check_date.split('-');
+        const currentDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        currentDate.setDate(currentDate.getDate() + 1);
+        const nextDateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
+        await supabase.from('daily_stock_checks').update({
+          yesterday_balance: newEve
+        })
+        .eq('product_id', itemToEdit.product_id)
+        .eq('branch_id', currentBranch.id)
+        .eq('check_date', nextDateStr);
+      }
+
+      setEditingId(null); 
+      fetchHistory(); 
+      setSuccessModal(true);
     } catch (error: any) { alert('❌ อัปเดตไม่สำเร็จ: ' + error.message) }
   }
 
@@ -59,19 +87,13 @@ export default function HistoryPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
-      
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">
           ประวัติการทำรายการ <span className="text-gray-500 text-lg ml-2">({currentBranch.name})</span>
         </h1>
         <div className="bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm flex items-center gap-2 transition-colors focus-within:border-[#df2323] focus-within:ring-1 focus-within:ring-[#df2323] w-fit">
           <span className="text-gray-500">📅</span>
-          <input 
-            type="date" 
-            value={selectedDate} 
-            onChange={(e) => setSelectedDate(e.target.value)} 
-            className="text-sm font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer" 
-          />
+          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer" />
         </div>
       </div>
 
@@ -124,11 +146,12 @@ export default function HistoryPage() {
                         });
                       }
 
+                      // 🔴 ปัดเศษขึ้นเป็นจำนวนเต็มทุกกรณี (Math.ceil)
                       let orderAmount: number | string = '-'; 
                       let needsOrder = false;
                       if (item.evening_counted !== null && item.products?.min_limit !== null && item.products?.max_limit !== null) {
                         if (totalCombinedStock <= item.products.min_limit) { 
-                          orderAmount = Number((item.products.max_limit - totalCombinedStock).toFixed(1)); 
+                          orderAmount = Math.ceil(item.products.max_limit - totalCombinedStock);
                           needsOrder = orderAmount > 0; 
                         } else { orderAmount = 0; }
                       }
