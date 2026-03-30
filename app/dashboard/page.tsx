@@ -50,16 +50,27 @@ export default function DashboardPage() {
   const dashboardRows = products.map(product => {
     const tCheck = todayChecks.find(c => c.product_id === product.id)
     const latestCheck = latestPastChecks[product.id]
+    
+    // 🔴 ป้องกันตัวเลขเป็น null (ถ้าว่างให้เป็น 0)
     let defaultLatestBalance = 0;
-    if (latestCheck) { defaultLatestBalance = latestCheck.evening_counted !== null ? latestCheck.evening_counted : (latestCheck.yesterday_balance + latestCheck.incoming); }
+    if (latestCheck) { defaultLatestBalance = latestCheck.evening_counted !== null ? Number(latestCheck.evening_counted) : Number((latestCheck.yesterday_balance || 0) + (latestCheck.incoming || 0)); }
 
-    const yBalance = tCheck ? tCheck.yesterday_balance : defaultLatestBalance;
-    const incoming = tCheck ? tCheck.incoming : 0;
-    const eveningCounted = tCheck ? tCheck.evening_counted : null;
+    const yBalance = tCheck ? Number(tCheck.yesterday_balance || 0) : defaultLatestBalance;
+    const incoming = tCheck ? Number(tCheck.incoming || 0) : 0;
+    const eveningCounted = tCheck && tCheck.evening_counted !== null ? Number(tCheck.evening_counted) : null;
+    
     const totalAvailable = Number((yBalance + incoming).toFixed(1));
     const usedAmount = (eveningCounted !== null && !product.hide_used) ? Number((totalAvailable - eveningCounted).toFixed(1)) : null;
 
-    return { ...product, categoryName: product.categories?.name || 'ไม่มีหมวดหมู่', yesterday_balance: Number(yBalance.toFixed(1)), incoming: Number(incoming.toFixed(1)), evening_counted: eveningCounted !== null ? Number(eveningCounted.toFixed(1)) : null, totalAvailable, usedAmount }
+    return { 
+      ...product, 
+      categoryName: product.categories?.name || 'ไม่มีหมวดหมู่', 
+      yesterday_balance: Number(yBalance.toFixed(1)), 
+      incoming: Number(incoming.toFixed(1)), 
+      evening_counted: eveningCounted !== null ? Number(eveningCounted.toFixed(1)) : null, 
+      totalAvailable, 
+      usedAmount 
+    }
   })
 
   const fullReportData = dashboardRows.map(row => {
@@ -69,7 +80,6 @@ export default function DashboardPage() {
       const linkedPrepItems = dashboardRows.filter(p => p.raw_material_id === row.id);
       linkedPrepItems.forEach(prepItem => { totalCombinedStock += (prepItem.evening_counted !== null ? prepItem.evening_counted : prepItem.totalAvailable); });
       
-      // 🔴 ตัดทศนิยมของเหยาเพื่อกันพลาด แล้วปัดขึ้นเสมอ
       totalCombinedStock = Number(totalCombinedStock.toFixed(1));
       if (totalCombinedStock <= row.min_limit) { 
         orderAmount = Math.ceil(row.max_limit - totalCombinedStock); 
@@ -107,8 +117,6 @@ export default function DashboardPage() {
   else if (currentFilterTarget === 'incoming') { currentModalCategories = incomingCategories; currentSelectedFilter = incomingFilter; filterTitle = 'กรองหมวดหมู่: ของเข้า'; themeColor = '#047857'; themeBg = 'bg-[#059669]'; } 
   else if (currentFilterTarget === 'balance') { currentModalCategories = balanceCategories; currentSelectedFilter = balanceFilter; filterTitle = 'กรองหมวดหมู่: คงเหลือ'; themeColor = '#1d4ed8'; themeBg = 'bg-[#2563eb]'; } 
   else if (currentFilterTarget === 'used') { currentModalCategories = usedCategories; currentSelectedFilter = usedFilter; filterTitle = 'กรองหมวดหมู่: ถูกใช้ไป'; themeColor = '#ca8a04'; themeBg = 'bg-[#eab308]'; }
-
-  const formattedDateForModal = new Date(selectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
 
   if (!currentBranch) return <div className="p-8 text-center text-gray-500">กำลังโหลดสาขา...</div>;
 
