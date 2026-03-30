@@ -27,6 +27,9 @@ export default function DashboardPage() {
   const [currentFilterTarget, setCurrentFilterTarget] = useState<'order' | 'incoming' | 'balance' | 'used' | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
+  // 🔴 เพิ่ม State สำหรับปุ่ม Telegram หน้าแดชบอร์ด
+  const [isTelegramSubmitting, setIsTelegramSubmitting] = useState(false)
+
   const fetchData = async () => {
     if (!currentBranch) return; 
     setIsLoading(true)
@@ -51,7 +54,6 @@ export default function DashboardPage() {
     const tCheck = todayChecks.find(c => c.product_id === product.id)
     const latestCheck = latestPastChecks[product.id]
     
-    // 🔴 ป้องกันตัวเลขเป็น null (ถ้าว่างให้เป็น 0)
     let defaultLatestBalance = 0;
     if (latestCheck) { defaultLatestBalance = latestCheck.evening_counted !== null ? Number(latestCheck.evening_counted) : Number((latestCheck.yesterday_balance || 0) + (latestCheck.incoming || 0)); }
 
@@ -112,6 +114,42 @@ export default function DashboardPage() {
   const openFilterModal = (target: 'order' | 'incoming' | 'balance' | 'used') => { setCurrentFilterTarget(target); setIsFilterModalOpen(true); };
   const handleSelectFilter = (cat: string) => { if (currentFilterTarget === 'order') setOrderFilter(cat); if (currentFilterTarget === 'incoming') setIncomingFilter(cat); if (currentFilterTarget === 'balance') setBalanceFilter(cat); if (currentFilterTarget === 'used') setUsedFilter(cat); setIsFilterModalOpen(false); };
 
+  // 🔴 ฟังก์ชันสำหรับกดส่ง Telegram หน้าแดชบอร์ดโดยตรง
+  const handleSendTelegram = async () => {
+    setIsTelegramSubmitting(true)
+    try {
+      const telegramItems = itemsToOrder.map(item => ({
+        name: item.name,
+        amount: String(item.orderAmount).replace('+', ''), // ลบเครื่องหมาย + ออกก่อนส่งให้บอท
+        unit: item.unit
+      }))
+
+      const d = new Date(selectedDate)
+      const formattedDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+
+      const res = await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportDate: formattedDate,
+          branchName: currentBranch?.name || 'ไม่ระบุสาขา',
+          itemsToOrder: telegramItems
+        })
+      })
+
+      const result = await res.json()
+      if (result.success) {
+        alert('✅ ส่งรายการสั่งของเข้า Telegram สำเร็จแล้วครับ!')
+      } else {
+        alert('❌ ส่งไม่สำเร็จ: ' + result.error)
+      }
+    } catch (error) {
+      alert('❌ ไม่สามารถเชื่อมต่อระบบ Telegram ได้')
+    } finally {
+      setIsTelegramSubmitting(false)
+    }
+  }
+
   let currentModalCategories: string[] = []; let currentSelectedFilter = ''; let filterTitle = ''; let themeColor = ''; let themeBg = '';
   if (currentFilterTarget === 'order') { currentModalCategories = orderCategories; currentSelectedFilter = orderFilter; filterTitle = 'กรองหมวดหมู่: สั่งของ'; themeColor = '#be123c'; themeBg = 'bg-[#e11d48]'; } 
   else if (currentFilterTarget === 'incoming') { currentModalCategories = incomingCategories; currentSelectedFilter = incomingFilter; filterTitle = 'กรองหมวดหมู่: ของเข้า'; themeColor = '#047857'; themeBg = 'bg-[#059669]'; } 
@@ -130,7 +168,16 @@ export default function DashboardPage() {
             <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer" />
           </div>
         </div>
-        <button onClick={() => setIsReportModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto">🚀 ส่งรายงานเอกสาร</button>
+        
+        {/* 🔴 เพิ่มปุ่มส่ง Telegram ไว้ข้างๆ ปุ่มส่งรายงานเอกสาร */}
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+          <button onClick={handleSendTelegram} disabled={isTelegramSubmitting} className="bg-[#0088cc] hover:bg-[#0077b5] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50">
+            {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> สั่งของเข้า Telegram</>}
+          </button>
+          <button onClick={() => setIsReportModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto">
+            <span>🚀</span> ส่งรายงานเอกสาร
+          </button>
+        </div>
       </div>
 
       {isLoading ? (<div className="p-16 flex flex-col justify-center items-center text-gray-500"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-4"></div>กำลังโหลดข้อมูลวันที่ {selectedDate}...</div>) : (

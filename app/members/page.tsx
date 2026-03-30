@@ -5,10 +5,10 @@ import { supabase } from '../../lib/supabase'
 import { useUser } from '../context/UserContext'
 import { useBranch } from '../context/BranchContext'
 
-interface Profile { id: string; full_name: string; role: 'manager' | 'employee'; branch_id: number; branches?: { name: string }; }
+// 🔴 1. เพิ่ม role 'super_admin' เข้าไปในระบบ
+interface Profile { id: string; full_name: string; role: 'super_admin' | 'manager' | 'employee'; branch_id: number; branches?: { name: string }; }
 
 export default function MembersPage() {
-  // 🔴 1. ดึง session มาเช็คเพิ่ม
   const { isManager, isLoading: userLoading, session } = useUser() 
   const { branches } = useBranch()
 
@@ -36,7 +36,8 @@ export default function MembersPage() {
     setIsLoading(false)
   }
 
-  useEffect(() => { if (!userLoading && isManager) fetchProfiles() }, [isManager, userLoading])
+  // 🔴 ดึงข้อมูลทันทีถ้ามี session เพื่อเอามาเช็คสิทธิ์ (เผื่อ UserContext บล็อก super_admin)
+  useEffect(() => { if (!userLoading && session) fetchProfiles() }, [session, userLoading])
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,10 +85,15 @@ export default function MembersPage() {
     finally { setIsDeleting(false) }
   }
 
-  // 🔴 2. ตัวดักเช็คสิทธิ์ที่ปรับปรุงแล้ว
-  if (userLoading) return <div className="p-8 text-center text-gray-500">กำลังตรวจสอบสิทธิ์...</div>;
-  if (!session) return null; // 🔴 ปิดการกระพริบตอนกดออกจากระบบ (เตะกลับเงียบๆ)
-  if (!isManager) return <div className="p-8 text-center text-red-500 font-bold text-xl mt-10">❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>;
+  // 🔴 2. ตรวจสอบสิทธิ์ของคนที่ล็อกอินอยู่ (หาว่าเป็น Super Admin, Admin หรือ พนักงาน)
+  const currentUserProfile = profiles.find(p => p.full_name === session?.user?.email || p.id === session?.user?.id);
+  const actualRole = currentUserProfile?.role;
+  const isSuperAdmin = actualRole === 'super_admin';
+  const hasPageAccess = isSuperAdmin || actualRole === 'manager' || isManager;
+
+  if (userLoading || (session && profiles.length === 0 && isLoading)) return <div className="p-8 text-center text-gray-500">กำลังตรวจสอบข้อมูลสิทธิ์...</div>;
+  if (!session) return null; 
+  if (!hasPageAccess) return <div className="p-8 text-center text-red-500 font-bold text-xl mt-10">❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>;
 
   const filteredProfiles = profiles.filter(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -104,7 +110,14 @@ export default function MembersPage() {
           <div className="flex-1 min-w-[200px]"><label className="block text-sm font-bold text-gray-700 mb-2">อีเมล (Email)</label><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] text-sm" placeholder="อีเมลสำหรับล็อกอิน" /></div>
           <div className="flex-1 min-w-[200px]"><label className="block text-sm font-bold text-gray-700 mb-2">รหัสผ่าน</label><input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] text-sm" placeholder="อย่างน้อย 6 ตัวอักษร" /></div>
           <div className="flex-1 min-w-[150px]"><label className="block text-sm font-bold text-gray-700 mb-2">เลือกสาขาที่ใช้งาน</label><select required value={branchId} onChange={(e) => setBranchId(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] text-sm bg-white cursor-pointer"><option value="" disabled>เลือกสาขา...</option>{branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-          <div className="flex-1 min-w-[150px]"><label className="block text-sm font-bold text-gray-700 mb-2">สิทธิ์การใช้งาน</label><select value={role} onChange={(e) => setRole(e.target.value as 'manager'|'employee')} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] text-sm bg-white cursor-pointer font-semibold text-gray-700"><option value="employee">พนักงานทั่วไป</option><option value="manager">หัวหน้า (Admin)</option></select></div>
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-sm font-bold text-gray-700 mb-2">สิทธิ์การใช้งาน</label>
+            {/* 🔴 ซ่อนตัวเลือก Super Admin ในหน้าเว็บ เพื่อความปลอดภัย (ต้องสร้างจาก DB เท่านั้น) */}
+            <select value={role} onChange={(e) => setRole(e.target.value as 'manager'|'employee')} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#4f46e5] text-sm bg-white cursor-pointer font-semibold text-gray-700">
+              <option value="employee">พนักงานทั่วไป</option>
+              <option value="manager">หัวหน้า (Admin)</option>
+            </select>
+          </div>
           <button type="submit" disabled={isSubmitting} className="bg-[#4f46e5] hover:bg-[#4338ca] text-white px-8 py-3 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[50px] w-full xl:w-auto flex items-center justify-center gap-2">{isSubmitting ? 'กำลังเพิ่ม...' : <><span className="text-xl leading-none">+</span> เพิ่มผู้ใช้งาน</>}</button>
         </form>
       </div>
@@ -121,8 +134,41 @@ export default function MembersPage() {
                     <td className="p-4 font-bold text-gray-800">{index + 1}</td>
                     <td className="p-4 text-left"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold flex items-center justify-center uppercase shadow-sm border border-white">{p.full_name.charAt(0)}</div><span className="font-semibold text-gray-800">{p.full_name}</span></div></td>
                     <td className="p-4"><span className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-full text-xs font-bold border border-gray-200">{p.branches?.name || 'ไม่ระบุสาขา'}</span></td>
-                    <td className="p-4">{p.role === 'manager' ? (<span className="bg-purple-100 text-purple-700 px-4 py-1.5 rounded-full text-xs font-bold border border-purple-200 flex items-center justify-center gap-1.5 w-fit mx-auto"><span>🛡️</span> หัวหน้า (Admin)</span>) : (<span className="bg-gray-100 text-gray-700 px-4 py-1.5 rounded-full text-xs font-bold border border-gray-200 flex items-center justify-center gap-1.5 w-fit mx-auto"><span>👤</span> พนักงานทั่วไป</span>)}</td>
-                    <td className="p-4"><div className="flex items-center justify-center gap-2"><button onClick={() => setDeleteModal({ isOpen: true, id: p.id, email: p.full_name })} className="bg-[#e11d48] hover:bg-[#be123c] text-white text-[11px] px-4 py-2 rounded-lg font-bold shadow-sm transition-colors">ลบบัญชี</button></div></td>
+                    
+                    {/* 🔴 3. สร้าง Badge แยกสิทธิ์ทั้ง 3 ระดับ */}
+                    <td className="p-4">
+                      {p.role === 'super_admin' ? (
+                        <span className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full text-xs font-bold border border-amber-200 flex items-center justify-center gap-1.5 w-fit mx-auto shadow-sm"><span>👑</span> ผู้ดูแลระบบ</span>
+                      ) : p.role === 'manager' ? (
+                        <span className="bg-purple-100 text-purple-700 px-4 py-1.5 rounded-full text-xs font-bold border border-purple-200 flex items-center justify-center gap-1.5 w-fit mx-auto"><span>🛡️</span> หัวหน้า (Admin)</span>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-700 px-4 py-1.5 rounded-full text-xs font-bold border border-gray-200 flex items-center justify-center gap-1.5 w-fit mx-auto"><span>👤</span> พนักงานทั่วไป</span>
+                      )}
+                    </td>
+
+                    {/* 🔴 4. เงื่อนไขซ่อน/แสดงปุ่มลบบัญชี */}
+                    <td className="p-4">
+                      <div className="flex items-center justify-center gap-2">
+                        {(() => {
+                          const isSelf = p.id === session?.user?.id || p.full_name === session?.user?.email;
+                          
+                          // กฎข้อที่ 1: ห้ามลบตัวเอง
+                          if (isSelf) return <span className="text-gray-400 text-[11px] font-bold px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg">บัญชีของคุณ</span>;
+                          
+                          // กฎข้อที่ 2: Super Admin ลบคนอื่นได้หมด หรือ Admin สั่งลบพนักงานทั่วไปได้
+                          if (isSuperAdmin || (actualRole === 'manager' && p.role === 'employee')) {
+                            return (
+                              <button onClick={() => setDeleteModal({ isOpen: true, id: p.id, email: p.full_name })} className="bg-[#e11d48] hover:bg-[#be123c] text-white text-[11px] px-4 py-2 rounded-lg font-bold shadow-sm transition-colors">
+                                ลบบัญชี
+                              </button>
+                            );
+                          }
+                          
+                          // กฎข้อที่ 3: ที่เหลือไม่มีสิทธิ์ลบ (เช่น Admin จะลบ Admin ด้วยกัน หรือ Admin จะลบ Super Admin)
+                          return <span className="text-gray-400 text-[10px] font-semibold bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg cursor-not-allowed">ไม่มีสิทธิ์ลบ</span>;
+                        })()}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}

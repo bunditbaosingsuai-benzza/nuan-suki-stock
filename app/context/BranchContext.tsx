@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useUser } from './UserContext' // 🔴 1. ดึง UserContext มาใช้งาน
+import { useUser } from './UserContext' 
 
 interface Branch { id: number; name: string; }
 
@@ -16,17 +16,26 @@ interface BranchContextType {
 const BranchContext = createContext<BranchContextType | undefined>(undefined)
 
 export function BranchProvider({ children }: { children: React.ReactNode }) {
-  const { profile, session, isLoading: userLoading } = useUser() // 🔴 2. เช็คว่าใครล็อกอิน
+  const { profile, session, isLoading: userLoading } = useUser() 
   const [branches, setBranches] = useState<Branch[]>([])
-  const [currentBranch, setCurrentBranch] = useState<Branch | null>(null)
+  
+  // ใช้ setCurrentBranchState แทนตัวเดิม เพื่อให้เราแทรกคำสั่งจำค่าได้
+  const [currentBranch, setCurrentBranchState] = useState<Branch | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // 🔴 สร้างฟังก์ชันเปลี่ยนสาขา พร้อมสั่งให้เบราว์เซอร์ "จดจำ" ลง Local Storage
+  const setCurrentBranch = (branch: Branch) => {
+    setCurrentBranchState(branch);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedBranchId', String(branch.id));
+    }
+  }
 
   useEffect(() => {
     const fetchBranches = async () => {
-      // 🔴 ถ้ายังไม่ล็อกอิน หรือกำลังเช็คสิทธิ์ ให้หยุดรอ ไม่ต้องไปดึงข้อมูล
       if (!session) {
         setBranches([])
-        setCurrentBranch(null)
+        setCurrentBranchState(null)
         setIsLoading(false)
         return
       }
@@ -35,18 +44,36 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.from('branches').select('*').order('id', { ascending: true })
       
       if (data && data.length > 0) {
-        // 🔴 3. กรองสาขาตามสิทธิ์ (RBAC)
-        if (profile?.role === 'manager') {
-          // ผู้จัดการ: โหลดทุกสาขา และตั้งค่าเริ่มต้นเป็นสาขาที่สังกัด หรือสาขาแรก
+        if (profile?.role === 'manager' || profile?.role === 'super_admin') {
           setBranches(data)
-          const myBranch = data.find(b => b.id === profile.branch_id) || data[0]
-          setCurrentBranch(myBranch)
+          
+          // 🔴 1. แอบไปดูความจำในเบราว์เซอร์ก่อน ว่าเคยเลือกสาขาไหนไว้ไหม?
+          let savedBranchId = null;
+          if (typeof window !== 'undefined') {
+            savedBranchId = localStorage.getItem('selectedBranchId');
+          }
+
+          let myBranch = null;
+          if (savedBranchId) {
+            myBranch = data.find(b => b.id === Number(savedBranchId));
+          }
+
+          // 🔴 2. ถ้าเพิ่งเข้าเว็บครั้งแรก (ยังไม่เคยจำ) ค่อยใช้สาขาประจำตัว หรือสาขาแรกสุด
+          if (!myBranch) {
+            myBranch = data.find(b => b.id === profile.branch_id) || data[0];
+          }
+
+          setCurrentBranchState(myBranch)
+
         } else if (profile?.role === 'employee') {
-          // พนักงาน: โหลดมาแค่ "สาขาของตัวเองสาขาเดียว"
+          // พนักงาน: โดนบังคับสาขาอยู่แล้ว
           const myBranch = data.find(b => b.id === profile.branch_id)
           if (myBranch) {
             setBranches([myBranch])
-            setCurrentBranch(myBranch)
+            setCurrentBranchState(myBranch)
+            if (typeof window !== 'undefined') {
+               localStorage.setItem('selectedBranchId', String(myBranch.id));
+            }
           }
         }
       }
@@ -56,7 +83,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     if (!userLoading) {
       fetchBranches()
     }
-  }, [session, profile, userLoading]) // 🔴 สั่งให้ทำงานใหม่ทุกครั้งที่มีคน Login/Logout
+  }, [session, profile, userLoading]) 
 
   return (
     <BranchContext.Provider value={{ branches, currentBranch, setCurrentBranch, isLoading }}>

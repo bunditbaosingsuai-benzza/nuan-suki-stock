@@ -13,6 +13,19 @@ export default function TopBar() {
     return name.charAt(0).toUpperCase();
   }
 
+  // 🔴 สร้างฟังก์ชันแยกสีและข้อความตามสิทธิ์ให้ดูง่ายและสวยงาม
+  const getRoleInfo = (role: string | undefined) => {
+    if (role === 'super_admin') {
+      return { text: '👑 ผู้ดูแลระบบ', style: 'bg-amber-100 text-amber-700 border border-amber-200' };
+    }
+    if (role === 'manager') {
+      return { text: '🛡️ผู้จัดการ', style: 'bg-red-100 text-[#df2323] border border-red-200' };
+    }
+    return { text: '👤พนักงาน', style: 'bg-gray-100 text-gray-600 border border-gray-200' };
+  }
+
+  const roleInfo = getRoleInfo(profile?.role);
+
   return (
     <div className="h-16 md:h-20 w-full bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0 z-[100] relative transition-all shadow-sm">
       
@@ -31,8 +44,10 @@ export default function TopBar() {
             <span className="text-gray-900 font-bold text-xs md:text-base truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
               {profile?.full_name || 'กำลังโหลด...'}
             </span>
-            <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 rounded-full w-fit mt-0.5 md:mt-0 truncate ${profile?.role === 'manager' ? 'bg-red-100 text-[#df2323]' : 'bg-gray-100 text-gray-600'}`}>
-              {profile?.role === 'manager' ? 'ผู้จัดการ' : 'พนักงาน'}
+            
+            {/* 🔴 ดึงค่าจากฟังก์ชัน getRoleInfo มาแสดงผล */}
+            <span className={`text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full w-fit mt-0.5 md:mt-0 truncate shadow-sm ${roleInfo.style}`}>
+              {roleInfo.text}
             </span>
           </div>
         </div>
