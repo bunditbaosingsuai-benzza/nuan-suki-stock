@@ -4,16 +4,18 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Session } from '@supabase/supabase-js'
 
+// 🔴 1. เพิ่ม 'super_admin' เข้าไปใน Profile เพื่อให้ระบบหน้าเว็บรู้จักสิทธิ์นี้
 interface Profile {
   id: string;
   full_name: string | null;
-  role: 'manager' | 'employee';
+  role: 'super_admin' | 'manager' | 'employee';
   branch_id: number | null;
 }
 
 interface UserContextType {
   session: Session | null;
   profile: Profile | null;
+  isSuperAdmin: boolean; // 🔴 เพิ่มสิทธิ์ Super Admin
   isManager: boolean;
   isEmployee: boolean;
   isLoading: boolean;
@@ -67,11 +69,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const isManager = profile?.role === 'manager';
+  // 🔴 2. จัดการสิทธิ์การเข้าถึงให้ถูกต้อง
+  const isSuperAdmin = profile?.role === 'super_admin';
+  // 💡 หัวใจสำคัญคือตรงนี้: สั่งให้ระบบมองว่า Super Admin ก็คือ Manager ระดับสูงสุด 
+  // (มีสิทธิ์ทุกอย่างที่ manager มี) ระบบหน้าแดชบอร์ดและอื่นๆ จะได้ยอมเปิดให้เข้าครับ
+  const isManager = profile?.role === 'manager' || profile?.role === 'super_admin';
   const isEmployee = profile?.role === 'employee';
 
   return (
-    <UserContext.Provider value={{ session, profile, isManager, isEmployee, isLoading, refreshProfile: () => profile ? fetchProfile(profile.id) : Promise.resolve() }}>
+    <UserContext.Provider value={{ session, profile, isSuperAdmin, isManager, isEmployee, isLoading, refreshProfile: () => profile ? fetchProfile(profile.id) : Promise.resolve() }}>
       {children}
     </UserContext.Provider>
   )
