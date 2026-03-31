@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useBranch } from '../context/BranchContext' // 🔴 1. เรียกใช้ Context สาขา
+import { useBranch } from '../context/BranchContext' 
 
 interface Category { name: string; }
 interface Product { id: number; name: string; unit: string; max_limit: number | null; min_limit: number | null; category_id: number | null; raw_material_id: number | null; hide_used: boolean | null; categories: Category | null; }
 
 export default function ProductsPage() {
-  const { currentBranch } = useBranch() // 🔴 2. ดึงสาขาปัจจุบันมาใช้
+  const { currentBranch } = useBranch() 
 
   const [products, setProducts] = useState<Product[]>([])
   const [name, setName] = useState('')
@@ -41,15 +41,17 @@ export default function ProductsPage() {
   const [activeCategory, setActiveCategory] = useState<string>('')
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  
+  // 🔴 1. เพิ่มตัวจับตำแหน่งให้แถบเมนูแนวนอน
+  const horizontalScrollRef = useRef<HTMLDivElement>(null)
+  const categoryBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const fetchProducts = async () => {
-    if (!currentBranch) return; // 🔴 กันพลาด ถ้ายังไม่มีสาขาไม่ให้โหลด
-    // 🔴 3. กรองเฉพาะ branch_id ปัจจุบัน
+    if (!currentBranch) return; 
     const { data } = await supabase.from('products').select(`*, categories ( name )`).eq('branch_id', currentBranch.id).order('id', { ascending: false })
     if (data) setProducts(data as Product[])
   }
 
-  // 🔴 โหลดใหม่ทุกครั้งที่เปลี่ยนสาขา
   useEffect(() => { if (currentBranch) fetchProducts() }, [currentBranch])
 
   const generateItemCode = (id: number) => `ITM-${String(id).padStart(3, '0')}`
@@ -64,7 +66,6 @@ export default function ProductsPage() {
     try {
       let categoryId = null
       if (categoryName) {
-        // 🔴 หาก่อนว่าหมวดหมู่นี้ในสาขานี้ มีหรือยัง?
         const { data: existingCat } = await supabase.from('categories').select('id').eq('name', categoryName).eq('branch_id', currentBranch.id).single()
         if (existingCat) categoryId = existingCat.id
         else {
@@ -72,7 +73,6 @@ export default function ProductsPage() {
           if (catError) throw catError; if (newCat) categoryId = newCat.id
         }
       }
-      // 🔴 แนบ branch_id ไปตอนสร้างสินค้า
       const { error: prodError } = await supabase.from('products').insert([{ name, category_id: categoryId, unit, max_limit: maxLimit ? parseFloat(maxLimit) : null, min_limit: minLimit ? parseFloat(minLimit) : null, raw_material_id: rawMaterialId ? parseInt(rawMaterialId) : null, hide_used: hideUsed, branch_id: currentBranch.id }])
       if (prodError) throw prodError
       setName(''); setCategoryName(''); setUnit(''); setMaxLimit(''); setMinLimit(''); setRawMaterialId(''); setHideUsed(false);
@@ -113,6 +113,18 @@ export default function ProductsPage() {
   const handleScroll = () => { if (!tableContainerRef.current) return; const scrollPosition = tableContainerRef.current.scrollTop + 80; let currentActive = ''; for (const cat of Object.keys(groupedProducts)) { const el = categoryRefs.current[cat]; if (el && el.offsetTop <= scrollPosition) currentActive = cat; } if (currentActive && currentActive !== activeCategory) setActiveCategory(currentActive); };
   const scrollToCategory = (cat: string) => { const el = categoryRefs.current[cat]; if (el && tableContainerRef.current) { tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' }); setActiveCategory(cat); } };
 
+  // 🔴 2. ฟังก์ชันสั่งเลื่อนปุ่มมาตรงกลาง
+  useEffect(() => {
+    if (activeCategory && horizontalScrollRef.current && categoryBtnRefs.current[activeCategory]) {
+      const container = horizontalScrollRef.current;
+      const button = categoryBtnRefs.current[activeCategory];
+      if (button) {
+        const scrollPos = button.offsetLeft - (container.offsetWidth / 2) + (button.offsetWidth / 2);
+        container.scrollTo({ left: scrollPos, behavior: 'smooth' });
+      }
+    }
+  }, [activeCategory]);
+
   const handleSelectCategory = (cat: string) => { if (modalTarget === 'add') setCategoryName(cat); else setEditCategoryName(cat); setIsCategoryModalOpen(false); }
   const handleSelectUnit = (u: string) => { if (modalTarget === 'add') setUnit(u); else setEditUnit(u); setIsUnitModalOpen(false); }
 
@@ -140,8 +152,18 @@ export default function ProductsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
-        <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-50 shadow-sm p-2 gap-2 px-4 items-center">
-          {Object.keys(groupedProducts).map(cat => (<button key={cat} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>{cat}</button>))}
+        {/* 🔴 3. ผูก Ref เข้ากับแถบเลื่อนและปุ่ม */}
+        <div ref={horizontalScrollRef} className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-50 shadow-sm p-2 gap-2 px-4 items-center scroll-smooth">
+          {Object.keys(groupedProducts).map(cat => (
+            <button 
+              key={cat} 
+              ref={(el) => { categoryBtnRefs.current[cat] = el; }}
+              onClick={() => scrollToCategory(cat)} 
+              className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
         <div ref={tableContainerRef} onScroll={handleScroll} className="overflow-auto flex-1 custom-scrollbar scroll-smooth bg-gray-50/30">
           <table className="w-full text-center border-collapse">
@@ -191,11 +213,11 @@ export default function ProductsPage() {
       </div>
 
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity"><div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center"><h3 className="text-2xl font-bold text-gray-900 mb-2">ลบรายการสินค้า?</h3><p className="text-gray-500 mb-8">คุณแน่ใจหรือไม่ที่จะลบ<br /><span className="font-bold text-[#df2323] text-lg">"{deleteModal.name}"</span></p><div className="flex gap-3 w-full"><button onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })} className="flex-1 bg-gray-100 font-bold py-3.5 rounded-xl">ยกเลิก</button><button onClick={executeDelete} className="flex-1 bg-[#df2323] text-white font-bold py-3.5 rounded-xl">ลบเลย!</button></div></div></div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity"><div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center"><h3 className="text-2xl font-bold text-gray-900 mb-2">ลบรายการสินค้า?</h3><p className="text-gray-500 mb-8">คุณแน่ใจหรือไม่ที่จะลบ<br /><span className="font-bold text-[#df2323] text-lg">"{deleteModal.name}"</span></p><div className="flex gap-3 w-full"><button onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })} className="flex-1 bg-gray-100 font-bold py-3.5 rounded-xl">ยกเลิก</button><button onClick={executeDelete} className="flex-1 bg-[#df2323] text-white font-bold py-3.5 rounded-xl">ลบเลย!</button></div></div></div>
       )}
 
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-gray-200">
             <div className="bg-[#4f46e5] p-4 px-6 flex justify-between items-center text-white"><h2 className="text-lg font-bold flex items-center gap-2">📚 เลือกหมวดหมู่</h2><button onClick={() => setIsCategoryModalOpen(false)} className="bg-white/20 hover:bg-white/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button></div>
             <div className="p-6">
@@ -209,7 +231,7 @@ export default function ProductsPage() {
       )}
 
       {isUnitModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-gray-200">
             <div className="bg-[#059669] p-4 px-6 flex justify-between items-center text-white"><h2 className="text-lg font-bold flex items-center gap-2">⚖️ เลือกหน่วยนับ</h2><button onClick={() => setIsUnitModalOpen(false)} className="bg-white/20 hover:bg-white/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors">✕</button></div>
             <div className="p-6">

@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useBranch } from '../context/BranchContext'
+import { useUser } from '../context/UserContext' 
 
 interface ProductInfo { name: string; unit: string; hide_used: boolean | null; min_limit: number | null; max_limit: number | null; raw_material_id: number | null; categories?: { name: string } | null; }
 interface HistoryItem { id: number; product_id: number; check_date: string; yesterday_balance: number; incoming: number; evening_counted: number | null; products: ProductInfo; }
 
 export default function HistoryPage() {
   const { currentBranch } = useBranch()
+  const { profile } = useUser()
 
   const [historyData, setHistoryData] = useState<HistoryItem[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
@@ -18,10 +20,17 @@ export default function HistoryPage() {
   const [editInc, setEditInc] = useState('')
   const [editEve, setEditEve] = useState('')
   const [successModal, setSuccessModal] = useState(false)
+  const [isTelegramSubmitting, setIsTelegramSubmitting] = useState(false) 
   
+  // 🔴 เพิ่ม State สำหรับ Popup แจ้งเตือน Telegram แบบสวยงาม
+  const [telegramModal, setTelegramModal] = useState<{isOpen: boolean, type: 'success' | 'error', message: string}>({isOpen: false, type: 'success', message: ''})
+
   const [activeCategory, setActiveCategory] = useState<string>('')
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+
+  const horizontalScrollRef = useRef<HTMLDivElement>(null)
+  const categoryBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const fetchHistory = async () => {
     if (!currentBranch || !selectedDate) return;
@@ -74,7 +83,81 @@ export default function HistoryPage() {
       setEditingId(null); 
       fetchHistory(); 
       setSuccessModal(true);
-    } catch (error: any) { alert('❌ อัปเดตไม่สำเร็จ: ' + error.message) }
+    } catch (error: any) { setTelegramModal({ isOpen: true, type: 'error', message: 'อัปเดตไม่สำเร็จ: ' + error.message }) }
+  }
+
+  const handleSendTelegram = async () => {
+    setIsTelegramSubmitting(true)
+    try {
+      if (historyData.length === 0) {
+        setTelegramModal({ isOpen: true, type: 'error', message: 'ไม่มีข้อมูลในวันที่เลือกครับ' })
+        setIsTelegramSubmitting(false)
+        return
+      }
+
+      const fullReportData = historyData.map(item => {
+        const total = Number((item.yesterday_balance + item.incoming).toFixed(1));
+        const eveningCounted = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-';
+        const usedAmount = (item.evening_counted !== null && !item.products?.hide_used) ? Number((total - item.evening_counted).toFixed(1)) : '-';
+
+        let totalCombinedStock = item.evening_counted !== null ? item.evening_counted : total;
+        const linkedItems = historyData.filter(r => r.products?.raw_material_id === item.product_id);
+        if (linkedItems.length > 0) {
+          linkedItems.forEach(linked => {
+            const linkedStock = linked.evening_counted !== null ? linked.evening_counted : (linked.yesterday_balance + linked.incoming);
+            totalCombinedStock += linkedStock;
+          });
+        }
+
+        let orderAmount: number | string = '-';
+        let needsOrder = false;
+        if (item.evening_counted !== null && item.products?.min_limit !== null && item.products?.max_limit !== null) {
+          if (totalCombinedStock <= item.products.min_limit) {
+            orderAmount = Math.ceil(item.products.max_limit - totalCombinedStock);
+            needsOrder = orderAmount > 0;
+          } else {
+            orderAmount = 0;
+          }
+        }
+
+        return {
+          name: item.products?.name || 'ไม่ทราบชื่อ',
+          category: item.products?.categories?.name || 'ไม่มีหมวดหมู่',
+          unit: item.products?.unit || '',
+          yesterday: item.yesterday_balance,
+          incoming: item.incoming,
+          evening: eveningCounted,
+          used: usedAmount,
+          orderAmount: needsOrder ? `+${orderAmount}` : (orderAmount === 0 ? '-' : '-'),
+          needsOrder: needsOrder
+        };
+      });
+
+      const d = new Date(selectedDate)
+      const formattedDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+
+      const res = await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportDate: formattedDate,
+          branchName: currentBranch?.name || 'ไม่ระบุสาขา',
+          fullReportData: fullReportData, 
+          senderName: profile?.full_name || 'ผู้ดูแลระบบ' 
+        })
+      })
+
+      const result = await res.json()
+      if (result.success) {
+        setTelegramModal({ isOpen: true, type: 'success', message: 'ส่งรายงานสรุปสั่งของเข้า Telegram สำเร็จแล้วครับ!' })
+      } else {
+        setTelegramModal({ isOpen: true, type: 'error', message: result.error || 'เกิดข้อผิดพลาดในการส่งข้อมูล' })
+      }
+    } catch (error) {
+      setTelegramModal({ isOpen: true, type: 'error', message: 'ไม่สามารถเชื่อมต่อระบบ Telegram ได้ กรุณาลองใหม่อีกครั้ง' })
+    } finally {
+      setIsTelegramSubmitting(false)
+    }
   }
 
   const groupedDailyHistory = historyData.reduce((acc, item) => { const cat = item.products?.categories?.name || 'ไม่มีหมวดหมู่'; if (!acc[cat]) acc[cat] = []; acc[cat].push(item); return acc; }, {} as Record<string, HistoryItem[]>);
@@ -82,6 +165,17 @@ export default function HistoryPage() {
 
   const handleScroll = () => { if (!tableContainerRef.current) return; const scrollPosition = tableContainerRef.current.scrollTop + 80; let currentActive = ''; for (const cat of categoriesList) { const el = categoryRefs.current[cat]; if (el && el.offsetTop <= scrollPosition) currentActive = cat; } if (currentActive && currentActive !== activeCategory) setActiveCategory(currentActive); };
   const scrollToCategory = (cat: string) => { const el = categoryRefs.current[cat]; if (el && tableContainerRef.current) { tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' }); setActiveCategory(cat); } };
+
+  useEffect(() => {
+    if (activeCategory && horizontalScrollRef.current && categoryBtnRefs.current[activeCategory]) {
+      const container = horizontalScrollRef.current;
+      const button = categoryBtnRefs.current[activeCategory];
+      if (button) {
+        const scrollPos = button.offsetLeft - (container.offsetWidth / 2) + (button.offsetWidth / 2);
+        container.scrollTo({ left: scrollPos, behavior: 'smooth' });
+      }
+    }
+  }, [activeCategory]);
 
   if (!currentBranch) return <div className="p-8 text-center text-gray-500">กำลังโหลดสาขา...</div>;
 
@@ -91,15 +185,32 @@ export default function HistoryPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">
           ประวัติการทำรายการ <span className="text-gray-500 text-lg ml-2">({currentBranch.name})</span>
         </h1>
-        <div className="bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm flex items-center gap-2 transition-colors focus-within:border-[#df2323] focus-within:ring-1 focus-within:ring-[#df2323] w-fit">
-          <span className="text-gray-500">📅</span>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer" />
+        
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+          <div className="bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm flex items-center gap-2 transition-colors focus-within:border-[#df2323] focus-within:ring-1 focus-within:ring-[#df2323] w-full sm:w-fit">
+            <span className="text-gray-500">📅</span>
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="text-sm font-bold text-gray-700 bg-transparent focus:outline-none cursor-pointer w-full" />
+          </div>
+          
+          <button onClick={handleSendTelegram} disabled={isTelegramSubmitting} className="bg-[#0088cc] hover:bg-[#0077b5] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50">
+            {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> ส่งรายงานเข้า Telegram</>}
+          </button>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
-        <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center">
-          {categoriesList.map(cat => (<button key={cat} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>{cat}</button>))}
+        
+        <div ref={horizontalScrollRef} className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center scroll-smooth">
+          {categoriesList.map(cat => (
+            <button 
+              key={cat} 
+              ref={(el) => { categoryBtnRefs.current[cat] = el; }}
+              onClick={() => scrollToCategory(cat)} 
+              className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         <div ref={tableContainerRef} onScroll={handleScroll} className="overflow-auto flex-1 custom-scrollbar scroll-smooth bg-gray-50/30">
@@ -146,7 +257,6 @@ export default function HistoryPage() {
                         });
                       }
 
-                      // 🔴 ปัดเศษขึ้นเป็นจำนวนเต็มทุกกรณี (Math.ceil)
                       let orderAmount: number | string = '-'; 
                       let needsOrder = false;
                       if (item.evening_counted !== null && item.products?.min_limit !== null && item.products?.max_limit !== null) {
@@ -210,6 +320,26 @@ export default function HistoryPage() {
 
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity"><div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center"><div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner"><svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div><h3 className="text-2xl font-bold text-gray-900 mb-2">สำเร็จ!</h3><button onClick={() => setSuccessModal(false)} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3.5 rounded-xl shadow-md transition-colors">ตกลง</button></div></div>
+      )}
+
+      {/* 🔴 ส่วนของ Popup แบบสวยงาม */}
+      {telegramModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className={`bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center border-t-8 ${telegramModal.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner ${telegramModal.type === 'success' ? 'bg-green-100 text-green-500' : 'bg-red-100 text-red-500'}`}>
+              {telegramModal.type === 'success' ? (
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+              )}
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">{telegramModal.type === 'success' ? 'สำเร็จ!' : 'เกิดข้อผิดพลาด'}</h3>
+            <p className="text-gray-600 mb-8 text-sm">{telegramModal.message}</p>
+            <button onClick={() => setTelegramModal({ ...telegramModal, isOpen: false })} className={`w-full text-white font-bold py-3.5 rounded-xl shadow-md transition-colors ${telegramModal.type === 'success' ? 'bg-[#059669] hover:bg-[#047857]' : 'bg-[#df2323] hover:bg-[#be123c]'}`}>
+              ตกลง
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

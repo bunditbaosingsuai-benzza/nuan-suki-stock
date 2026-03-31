@@ -31,6 +31,10 @@ export default function DailyCheckPage() {
   const [activeCategory, setActiveCategory] = useState<string>('')
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  
+  // 🔴 เพิ่ม Ref สำหรับจับตำแหน่งแถบเมนูแนวนอน
+  const horizontalScrollRef = useRef<HTMLDivElement>(null)
+  const categoryBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   const today = new Date()
   const todayForDB = today.toLocaleDateString('en-CA')
@@ -77,8 +81,39 @@ export default function DailyCheckPage() {
   const groupedRows = tableRows.reduce((acc, row) => { const cat = row.categoryName; if (!acc[cat]) acc[cat] = []; acc[cat].push(row); return acc; }, {} as Record<string, typeof tableRows>);
   const categoriesList = Object.keys(groupedRows);
 
-  const handleScroll = () => { if (!tableContainerRef.current) return; const container = tableContainerRef.current; const scrollPosition = container.scrollTop + 80; let currentActive = ''; for (const cat of categoriesList) { const el = categoryRefs.current[cat]; if (el && el.offsetTop <= scrollPosition) { currentActive = cat; } } if (currentActive && currentActive !== activeCategory) { setActiveCategory(currentActive); } };
-  const scrollToCategory = (cat: string) => { const el = categoryRefs.current[cat]; if (el && tableContainerRef.current) { tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' }); setActiveCategory(cat); } };
+  const handleScroll = () => { 
+    if (!tableContainerRef.current) return; 
+    const container = tableContainerRef.current; 
+    const scrollPosition = container.scrollTop + 80; 
+    let currentActive = ''; 
+    for (const cat of categoriesList) { 
+      const el = categoryRefs.current[cat]; 
+      if (el && el.offsetTop <= scrollPosition) { currentActive = cat; } 
+    } 
+    if (currentActive && currentActive !== activeCategory) { 
+      setActiveCategory(currentActive); 
+    } 
+  };
+
+  const scrollToCategory = (cat: string) => { 
+    const el = categoryRefs.current[cat]; 
+    if (el && tableContainerRef.current) { 
+      tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' }); 
+      setActiveCategory(cat); 
+    } 
+  };
+
+  // 🔴 เอฟเฟกต์สั่งให้แถบแนวนอนเลื่อนตามหมวดหมู่ที่ Active อยู่ให้อยู่ "ตรงกลาง"
+  useEffect(() => {
+    if (activeCategory && horizontalScrollRef.current && categoryBtnRefs.current[activeCategory]) {
+      const container = horizontalScrollRef.current;
+      const button = categoryBtnRefs.current[activeCategory];
+      if (button) {
+        const scrollPos = button.offsetLeft - (container.offsetWidth / 2) + (button.offsetWidth / 2);
+        container.scrollTo({ left: scrollPos, behavior: 'smooth' });
+      }
+    }
+  }, [activeCategory]);
 
   const handleSelectProductFromModal = (id: number, name: string) => { setSelectedProductId(String(id)); setSelectedProductName(name); setIsModalOpen(false); setSearchQuery(''); const row = tableRows.find(r => r.id === id); if (row) { setYesterdayBalance(String(row.yesterday_balance)); setIncoming(String(row.incoming === 0 ? '' : row.incoming)) } }
 
@@ -153,8 +188,19 @@ export default function DailyCheckPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
           <div className="bg-[#2563eb] p-4 px-8 text-white font-bold flex items-center justify-between gap-3 flex-shrink-0 relative z-20"><div className="flex items-center gap-3"><span className="text-2xl">🌙</span> ตารางเช็คของตอนเย็น (ปิดร้าน)</div><div className="text-sm bg-[#1d4ed8] px-4 py-1.5 rounded-full shadow-inner font-medium">{tableRows.length} รายการ</div></div>
-          <div className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center">
-            {categoriesList.map(cat => (<button key={cat} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#2563eb] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>{cat}</button>))}
+          
+          {/* 🔴 ผูก Ref ให้ container แนวนอน เพื่อให้มันเลื่อนได้ */}
+          <div ref={horizontalScrollRef} className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center scroll-smooth">
+            {categoriesList.map(cat => (
+              <button 
+                key={cat} 
+                ref={(el) => { categoryBtnRefs.current[cat] = el; }} // 🔴 ผูก Ref ให้แต่ละปุ่มเพื่อจับตำแหน่ง
+                onClick={() => scrollToCategory(cat)} 
+                className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#2563eb] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           <div ref={tableContainerRef} onScroll={handleScroll} className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30 scroll-smooth">
@@ -218,7 +264,6 @@ export default function DailyCheckPage() {
           </div>
         </div>
 
-        {/* 🔴 แก้ไข Modal ให้มีพื้นที่รอบๆ และขยับมาตรงกลาง */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 animate-in fade-in duration-200">
             <div className="bg-[#f8f9fa] rounded-3xl shadow-2xl w-[calc(100%-2rem)] sm:w-[calc(100%-4rem)] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden mx-auto">
