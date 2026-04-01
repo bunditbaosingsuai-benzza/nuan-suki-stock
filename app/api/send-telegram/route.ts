@@ -2,51 +2,109 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { reportDate, branchName, itemsToOrder } = await req.json();
+    const { reportDate, branchName, fullReportData, senderName } = await req.json();
     
-    // ดึงค่า Token และ Chat ID จากไฟล์ .env.local
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (!botToken || !chatId) {
-      return NextResponse.json({ success: false, error: 'ยังไม่ได้ตั้งค่า Telegram Token หรือ Chat ID ในระบบ' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'ยังไม่ได้ตั้งค่า Telegram Token' }, { status: 500 });
     }
 
-    // 📝 จัดหน้าตาข้อความที่จะส่งเข้ากลุ่ม (ใช้ HTML ตกแต่งตัวหนาได้)
-    let text = `📦 <b>สรุปสั่งของประจำวัน: ${branchName}</b>\n`;
-    text += `📅 วันที่: ${reportDate}\n\n`;
-
-    if (itemsToOrder.length === 0) {
-      text += `✅ <b>ไม่มีรายการที่ต้องสั่งเพิ่มครับ</b>\nสต๊อกเพียงพอต่อการใช้งาน`;
-    } else {
-      text += `<b>⚠️ รายการที่ต้องสั่งเพิ่ม:</b>\n`;
-      itemsToOrder.forEach((item: any) => {
-        text += `• ${item.name}: <b>+${item.amount}</b> ${item.unit}\n`;
-      });
-    }
-
-    text += `\n<i>(ส่งอัตโนมัติจากระบบ Nuan Suki Stock)</i>`;
-
-    // 🚀 ยิง API ไปหา Telegram
-    const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const response = await fetch(telegramUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-        parse_mode: 'HTML' // สั่งให้ Telegram อ่านโค้ดตัวหนา
-      })
+    // 1. จัดกลุ่มข้อมูลตามหมวดหมู่
+    const groupedData: Record<string, any[]> = {};
+    fullReportData.forEach((item: any) => {
+      if (!groupedData[item.category]) groupedData[item.category] = [];
+      groupedData[item.category].push(item);
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.description || 'ไม่สามารถส่งข้อความเข้า Telegram ได้');
+    // 2. เตรียมกล่องใส่ข้อความหลายๆ กล่อง (เพื่อกันความยาวเกิน 4000 ตัวอักษร)
+    const messagesToSend: string[] = [];
+    let currentText = `🚨 <b>รายงานสรุปสั่งของ (${branchName})</b>\n📅 ประจำวันที่: ${reportDate}\n\n`;
+
+    // 3. รายละเอียดการใช้ของ แยกตามหมวด
+    for (const [category, items] of Object.entries(groupedData)) {
+      let categoryBlock = `<b>📂 ${category}</b>\n`;
+      
+      items.forEach(item => {
+        const orderAmtStr = String(item.orderAmount).replace('+', '');
+        const statusStr = item.needsOrder ? `ต้องสั่งเพิ่ม ${orderAmtStr} ${item.unit} 🔴` : `พอขาย ✅`;
+        
+        const yest = item.yesterday !== '-' ? item.yesterday : 0;
+        const inc = item.incoming !== '-' ? item.incoming : 0;
+        const used = item.used !== '-' ? item.used : '?';
+
+        categoryBlock += `🔸 <b>${item.name}</b>\n`;
+        categoryBlock += `   ├ (เหลือ: ${yest} | เข้า: ${inc} | ใช้: ${used})\n`;
+        categoryBlock += `   └ 👉 <i>${statusStr}</i>\n`;
+      });
+      categoryBlock += `\n`;
+
+      // 🔴 ถ้ายาวเกิน 3500 ตัวอักษร ให้ตัดขึ้นข้อความบับเบิ้ลใหม่
+      if (currentText.length + categoryBlock.length > 3500) {
+        messagesToSend.push(currentText); // เก็บกล่องเก่า
+        currentText = categoryBlock; // เริ่มกล่องใหม่
+      } else {
+        currentText += categoryBlock; // ถ้ายาวไม่ถึงก็ต่อท้ายไปเรื่อยๆ
+      }
+    }
+
+    // 4. สรุปรายการสั่งของตอนท้าย
+    let summaryBlock = `━━━━━━━━━━━━━━\n🛒 <b>สรุปรายการสั่งซื้อ</b>\n`;
+    let hasOrder = false;
+    
+    for (const [category, items] of Object.entries(groupedData)) {
+      const orderItems = items.filter(i => i.needsOrder);
+      if (orderItems.length > 0) {
+        hasOrder = true;
+        summaryBlock += `<b>${category}</b>\n`;
+        orderItems.forEach(item => {
+          const orderAmtStr = String(item.orderAmount).replace('+', '');
+          summaryBlock += `- ${item.name} : ${orderAmtStr} ${item.unit}\n`;
+        });
+        summaryBlock += `\n`;
+      }
+    }
+
+    if (!hasOrder) {
+      summaryBlock += `✅ <b>ไม่ต้องสั่งของเพิ่มครับ สต๊อกเพียงพอ</b>\n\n`;
+    }
+
+    summaryBlock += `👨‍💻 ผู้ส่ง: ${senderName}`;
+
+    // 🔴 เช็คกล่องสุดท้ายว่ารวมสรุปแล้วล้นไหม
+    if (currentText.length + summaryBlock.length > 3500) {
+      messagesToSend.push(currentText);
+      messagesToSend.push(summaryBlock);
+    } else {
+      currentText += summaryBlock;
+      messagesToSend.push(currentText);
+    }
+
+    // 🚀 5. ทยอยส่งข้อความทีละกล่องไปหา Telegram
+    for (const msg of messagesToSend) {
+      const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const response = await fetch(telegramUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: msg,
+          parse_mode: 'HTML'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.description);
+      }
+      
+      // หน่วงเวลา 0.2 วินาที ป้องกัน Telegram บล็อกเพราะส่งถี่เกินไป
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Telegram Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

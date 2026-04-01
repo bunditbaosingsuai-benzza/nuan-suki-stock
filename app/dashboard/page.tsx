@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import SendReportModal from '../components/SendReportModal'
 import { useBranch } from '../context/BranchContext'
+import { useUser } from '../context/UserContext' 
 
 interface Category { name: string; }
 interface Product { id: number; name: string; unit: string; min_limit: number | null; max_limit: number | null; raw_material_id: number | null; hide_used: boolean | null; categories?: Category | null; }
@@ -11,6 +12,7 @@ interface DailyCheck { id: number; product_id: number; check_date: string; yeste
 
 export default function DashboardPage() {
   const { currentBranch } = useBranch() 
+  const { profile } = useUser() 
 
   const [products, setProducts] = useState<Product[]>([])
   const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
@@ -27,8 +29,10 @@ export default function DashboardPage() {
   const [currentFilterTarget, setCurrentFilterTarget] = useState<'order' | 'incoming' | 'balance' | 'used' | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
-  // 🔴 เพิ่ม State สำหรับปุ่ม Telegram หน้าแดชบอร์ด
   const [isTelegramSubmitting, setIsTelegramSubmitting] = useState(false)
+  
+  // 🔴 เพิ่ม State สำหรับ Popup แจ้งเตือน Telegram แบบสวยงาม
+  const [telegramModal, setTelegramModal] = useState<{isOpen: boolean, type: 'success' | 'error', message: string}>({isOpen: false, type: 'success', message: ''})
 
   const fetchData = async () => {
     if (!currentBranch) return; 
@@ -114,16 +118,9 @@ export default function DashboardPage() {
   const openFilterModal = (target: 'order' | 'incoming' | 'balance' | 'used') => { setCurrentFilterTarget(target); setIsFilterModalOpen(true); };
   const handleSelectFilter = (cat: string) => { if (currentFilterTarget === 'order') setOrderFilter(cat); if (currentFilterTarget === 'incoming') setIncomingFilter(cat); if (currentFilterTarget === 'balance') setBalanceFilter(cat); if (currentFilterTarget === 'used') setUsedFilter(cat); setIsFilterModalOpen(false); };
 
-  // 🔴 ฟังก์ชันสำหรับกดส่ง Telegram หน้าแดชบอร์ดโดยตรง
   const handleSendTelegram = async () => {
     setIsTelegramSubmitting(true)
     try {
-      const telegramItems = itemsToOrder.map(item => ({
-        name: item.name,
-        amount: String(item.orderAmount).replace('+', ''), // ลบเครื่องหมาย + ออกก่อนส่งให้บอท
-        unit: item.unit
-      }))
-
       const d = new Date(selectedDate)
       const formattedDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -133,18 +130,20 @@ export default function DashboardPage() {
         body: JSON.stringify({
           reportDate: formattedDate,
           branchName: currentBranch?.name || 'ไม่ระบุสาขา',
-          itemsToOrder: telegramItems
+          fullReportData: fullReportData, 
+          senderName: profile?.full_name || 'ผู้ดูแลระบบ' 
         })
       })
 
       const result = await res.json()
       if (result.success) {
-        alert('✅ ส่งรายการสั่งของเข้า Telegram สำเร็จแล้วครับ!')
+        // 🔴 เรียกใช้ Popup สวยๆ แทนการใช้ alert
+        setTelegramModal({ isOpen: true, type: 'success', message: 'ส่งรายงานสรุปสั่งของเข้า Telegram สำเร็จแล้วครับ!' })
       } else {
-        alert('❌ ส่งไม่สำเร็จ: ' + result.error)
+        setTelegramModal({ isOpen: true, type: 'error', message: result.error || 'เกิดข้อผิดพลาดในการส่งข้อมูล' })
       }
     } catch (error) {
-      alert('❌ ไม่สามารถเชื่อมต่อระบบ Telegram ได้')
+      setTelegramModal({ isOpen: true, type: 'error', message: 'ไม่สามารถเชื่อมต่อระบบ Telegram ได้ กรุณาลองใหม่อีกครั้ง' })
     } finally {
       setIsTelegramSubmitting(false)
     }
@@ -169,10 +168,9 @@ export default function DashboardPage() {
           </div>
         </div>
         
-        {/* 🔴 เพิ่มปุ่มส่ง Telegram ไว้ข้างๆ ปุ่มส่งรายงานเอกสาร */}
         <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
           <button onClick={handleSendTelegram} disabled={isTelegramSubmitting} className="bg-[#0088cc] hover:bg-[#0077b5] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50">
-            {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> สั่งของเข้า Telegram</>}
+            {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> ส่งรายงานเข้า Telegram</>}
           </button>
           <button onClick={() => setIsReportModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto">
             <span>🚀</span> ส่งรายงานเอกสาร
@@ -222,6 +220,26 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔴 ส่วนของ Popup แบบสวยงาม */}
+      {telegramModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className={`bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center border-t-8 ${telegramModal.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner ${telegramModal.type === 'success' ? 'bg-green-100 text-green-500' : 'bg-red-100 text-red-500'}`}>
+              {telegramModal.type === 'success' ? (
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+              )}
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">{telegramModal.type === 'success' ? 'สำเร็จ!' : 'เกิดข้อผิดพลาด'}</h3>
+            <p className="text-gray-600 mb-8 text-sm">{telegramModal.message}</p>
+            <button onClick={() => setTelegramModal({ ...telegramModal, isOpen: false })} className={`w-full text-white font-bold py-3.5 rounded-xl shadow-md transition-colors ${telegramModal.type === 'success' ? 'bg-[#059669] hover:bg-[#047857]' : 'bg-[#df2323] hover:bg-[#be123c]'}`}>
+              ตกลง
+            </button>
           </div>
         </div>
       )}

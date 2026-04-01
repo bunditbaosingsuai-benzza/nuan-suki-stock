@@ -14,7 +14,6 @@ export default function ReportsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   
-  // 🔴 1. เพิ่ม State สำหรับเลือกวันที่ (ปฏิทิน) แบบเดียวกับหน้าอื่นๆ
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
 
   const fetchReports = async () => {
@@ -29,7 +28,6 @@ export default function ReportsPage() {
       .order('created_at', { ascending: false })
 
     if (data) {
-      // 🔴 2. แก้ปัญหาเวลาโลก (Timezone) โดยบังคับแปลงให้เป็นเวลาไทยก่อนค่อยเช็คกับวันที่ในปฏิทิน
       const filteredData = data.filter((report: any) => {
         const localDateString = new Date(report.created_at).toLocaleDateString('en-CA')
         return localDateString === selectedDate
@@ -51,7 +49,6 @@ export default function ReportsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b-2 border-[#df2323] pb-4">
         
-        {/* 🔴 3. เปลี่ยนหัวข้อให้มี ปฏิทินเลือกวันที่ แบบเดียวกับแดชบอร์ด */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#df2323]">ประวัติการส่งรายงาน <span className="text-gray-500 text-lg ml-2">({currentBranch.name})</span></h1>
           <div className="bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm flex items-center gap-2 transition-colors focus-within:border-[#df2323] focus-within:ring-1 focus-within:ring-[#df2323] w-fit">
@@ -66,7 +63,10 @@ export default function ReportsPage() {
         </div>
 
         <div className="flex gap-2">
-          <button onClick={() => setIsModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center gap-2">🚀 ส่งรายงานเอกสาร</button>
+          {/* 🔴 เหลือแค่ปุ่มส่งรายงานเอกสาร */}
+          <button onClick={() => setIsModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center gap-2">
+            🚀 ส่งรายงานเอกสาร
+          </button>
         </div>
       </div>
 

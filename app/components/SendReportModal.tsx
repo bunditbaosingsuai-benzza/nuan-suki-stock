@@ -9,7 +9,7 @@ interface SendReportModalProps {
   onClose: () => void
   selectedDate: string
   onDateChange: (date: string) => void
-  fullReportData: any[]
+  fullReportData: any[] 
 }
 
 export default function SendReportModal({ isOpen, onClose, selectedDate, onDateChange, fullReportData }: SendReportModalProps) {
@@ -18,12 +18,10 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isTelegramSubmitting, setIsTelegramSubmitting] = useState(false) // 🔴 สถานะโหลดปุ่ม Telegram
 
   const [warningMsg, setWarningMsg] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [successMode, setSuccessMode] = useState<'email' | 'telegram'>('email') // 🔴 แยกโชว์สำเร็จ
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
@@ -32,7 +30,6 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
     setMessage(`เรียน ผู้จัดการ\n\nแนบไฟล์รายงานสรุปเช็คสต๊อกสินค้า ประจำวันที่ ${formattedDate}\nรบกวนพิจารณาและตรวจสอบใบสั่งซื้อ ตามรายละเอียดที่ส่งมาด้วยครับ\n\nขอบคุณครับ/ค่ะ`)
   }, [selectedDate])
 
-  // ================= 📧 ส่วนของ Email =================
   const handlePreSend = () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -87,7 +84,6 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
       const result = await res.json()
 
       if (result.success) {
-        setSuccessMode('email')
         setShowSuccess(true) 
         setEmail('') 
       } else {
@@ -97,68 +93,6 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
       setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  // ================= ✈️ ส่วนของ Telegram =================
-  const executeSendTelegram = async () => {
-    setIsTelegramSubmitting(true)
-
-    try {
-      // 1. ดึงข้อมูลเหมือนอีเมล
-      const { data: stockData, error: stockError } = await supabase
-        .from('daily_stock_checks')
-        .select('*, products(name, unit, min_limit, max_limit)')
-        .eq('check_date', selectedDate)
-        .eq('branch_id', currentBranch?.id);
-
-      if (stockError) throw stockError;
-      if (!stockData || stockData.length === 0) {
-        const d = new Date(selectedDate);
-        setWarningMsg(`ยังไม่มีการบันทึกข้อมูลสต๊อกของวันที่ ${d.toLocaleDateString('th-TH')} ครับ`);
-        setIsTelegramSubmitting(false);
-        return;
-      }
-
-      // 2. คำนวณหาเฉพาะของที่ต้อง "สั่งเพิ่ม" (ต่ำกว่า min_limit)
-      const itemsToOrder: { name: string, amount: number, unit: string }[] = [];
-      stockData.forEach(item => {
-        if (item.evening_counted !== null && item.products?.min_limit !== null && item.products?.max_limit !== null) {
-          if (item.evening_counted <= item.products.min_limit) {
-            const orderAmt = Math.ceil(item.products.max_limit - item.evening_counted);
-            if (orderAmt > 0) {
-              itemsToOrder.push({ name: item.products.name, amount: orderAmt, unit: item.products.unit });
-            }
-          }
-        }
-      });
-
-      const d = new Date(selectedDate)
-      const formattedDate = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
-
-      // 3. ยิงไปหา API Telegram ที่เราสร้างไว้
-      const res = await fetch('/api/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportDate: formattedDate,
-          branchName: currentBranch?.name || 'ไม่ระบุสาขา',
-          itemsToOrder: itemsToOrder
-        })
-      })
-
-      const result = await res.json()
-
-      if (result.success) {
-        setSuccessMode('telegram')
-        setShowSuccess(true) 
-      } else {
-        setErrorMsg(result.error || 'ส่งเข้ากลุ่ม Telegram ไม่สำเร็จ (อย่าลืมตั้งค่า Token)')
-      }
-    } catch (error: any) {
-      setErrorMsg('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง')
-    } finally {
-      setIsTelegramSubmitting(false)
     }
   }
 
@@ -179,7 +113,7 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
   return (
     <>
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-        <div className="bg-white rounded-3xl w-full max-w-3xl flex flex-col md:flex-row overflow-hidden shadow-2xl transform transition-all max-h-[90vh]">
+        <div className="bg-white rounded-3xl w-full max-w-3xl flex flex-col md:flex-row overflow-hidden shadow-2xl transform transition-all max-h-[85vh]">
           
           <div className="hidden md:flex w-1/3 bg-gray-50 p-6 flex-col items-center justify-center border-r border-gray-100 relative">
             <div className="w-28 h-36 bg-white shadow-md rounded-xl border border-gray-200 flex flex-col items-center justify-center mb-6 relative overflow-hidden">
@@ -187,28 +121,13 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
               <span className="text-red-600 font-black text-3xl mt-4">PDF</span>
             </div>
             <h3 className="font-bold text-gray-800 text-base text-center mb-1">Daily_Report_{dayStr}.pdf</h3>
-            <p className="text-xs text-gray-500 text-center leading-relaxed mb-6">ประจำวันที่: {fullThDate}</p>
-            
-            {/* 🔴 ปุ่มส่ง Telegram แยกต่างหากตรงฝั่งซ้าย (เพื่อความชัดเจน) */}
-            <div className="w-full border-t border-gray-200 pt-6">
-              <p className="text-xs font-bold text-gray-600 text-center mb-3">แจ้งเตือนแบบย่อ (สรุปสั่งของ)</p>
-              <button onClick={executeSendTelegram} disabled={isTelegramSubmitting || isSubmitting} className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm">
-                {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> แจ้งเตือนเข้า Telegram</>}
-              </button>
-            </div>
+            <p className="text-xs text-gray-500 text-center leading-relaxed">ประจำวันที่: {fullThDate}<br/>ส่งเป็นข้อมูลตารางในอีเมล</p>
           </div>
 
           <div className="w-full md:w-2/3 p-6 md:p-8 overflow-y-auto custom-scrollbar flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-800">รูปแบบรายงาน (ส่งอีเมล)</h2>
               <button onClick={handleCloseMain} className="bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full w-8 h-8 flex items-center justify-center transition-colors text-sm">✕</button>
-            </div>
-
-            {/* ปุ่ม Telegram สำหรับมือถือ (เพราะฝั่งซ้ายจะถูกซ่อนในมือถือ) */}
-            <div className="md:hidden w-full mb-6 pb-6 border-b border-gray-100">
-               <button onClick={executeSendTelegram} disabled={isTelegramSubmitting || isSubmitting} className="w-full bg-[#0088cc] hover:bg-[#0077b5] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm">
-                {isTelegramSubmitting ? 'กำลังส่งบอท...' : <><span>✈️</span> แจ้งเตือนสรุปสั่งของเข้า Telegram</>}
-              </button>
             </div>
 
             <div className="flex flex-col gap-5 flex-1">
@@ -232,7 +151,7 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
 
             <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100">
               <button onClick={handleCloseMain} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors">ยกเลิก</button>
-              <button onClick={handlePreSend} disabled={isSubmitting || isTelegramSubmitting} className="flex-1 bg-[#df2323] hover:bg-[#be123c] text-white font-bold py-3 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              <button onClick={handlePreSend} disabled={isSubmitting} className="flex-1 bg-[#df2323] hover:bg-[#be123c] text-white font-bold py-3 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                 {isSubmitting ? (<>กำลังเตรียมไฟล์ PDF...</>) : (<><span>🚀</span> ส่งอีเมล</>)}
               </button>
             </div>
@@ -265,10 +184,8 @@ export default function SendReportModal({ isOpen, onClose, selectedDate, onDateC
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 transform transition-all text-center">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner"><svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg></div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">{successMode === 'email' ? 'ส่งอีเมลสำเร็จ!' : 'ส่งแจ้งเตือนสำเร็จ!'}</h3>
-            <p className="text-gray-500 mb-8 text-sm">
-              {successMode === 'email' ? `อีเมลถูกส่งไปยัง ${email} เรียบร้อยแล้ว` : 'สรุปยอดสั่งของถูกส่งเข้ากลุ่ม Telegram เรียบร้อยแล้ว'}
-            </p>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">ส่งอีเมลสำเร็จ!</h3>
+            <p className="text-gray-500 mb-8 text-sm">อีเมลถูกส่งไปยัง {email} เรียบร้อยแล้ว</p>
             <button onClick={handleCloseMain} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3.5 rounded-xl shadow-md transition-colors">ตกลง</button>
           </div>
         </div>
