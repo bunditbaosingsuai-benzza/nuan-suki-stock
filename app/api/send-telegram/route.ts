@@ -24,23 +24,25 @@ export async function POST(req: Request) {
 
     // 3. รายละเอียดการใช้ของ แยกตามหมวด
     for (const [category, items] of Object.entries(groupedData)) {
-      let categoryBlock = `<b>📂 ${category}</b>\n`;
+      let categoryBlock = `📁 <b>${category}</b>\n`;
       
       items.forEach(item => {
         const orderAmtStr = String(item.orderAmount).replace('+', '');
         const statusStr = item.needsOrder ? `ต้องสั่งเพิ่ม ${orderAmtStr} ${item.unit} 🔴` : `พอขาย ✅`;
         
+        // 🔴 ดึงค่าใหม่ที่เพิ่มเข้ามาให้ครบ (เหลือเมื่อวาน, รับเข้า, นับได้ตอนเย็น, ใช้ไป)
         const yest = item.yesterday !== '-' ? item.yesterday : 0;
         const inc = item.incoming !== '-' ? item.incoming : 0;
+        const eve = item.evening !== '-' ? item.evening : 'ยังไม่นับ';
         const used = item.used !== '-' ? item.used : '?';
 
-        categoryBlock += `🔸 <b>${item.name}</b>\n`;
-        categoryBlock += `   ├ (เหลือ: ${yest} | เข้า: ${inc} | ใช้: ${used})\n`;
+        categoryBlock += `🔶 <b>${item.name}</b>\n`;
+        categoryBlock += `   ├ (เมื่อวาน: ${yest} | รับเข้า: ${inc} | นับได้: ${eve} | ใช้ไป: ${used})\n`;
         categoryBlock += `   └ 👉 <i>${statusStr}</i>\n`;
       });
       categoryBlock += `\n`;
 
-      // 🔴 ถ้ายาวเกิน 3500 ตัวอักษร ให้ตัดขึ้นข้อความบับเบิ้ลใหม่
+      // ถ้ายาวเกิน 3500 ตัวอักษร ให้ตัดขึ้นข้อความบับเบิ้ลใหม่
       if (currentText.length + categoryBlock.length > 3500) {
         messagesToSend.push(currentText); // เก็บกล่องเก่า
         currentText = categoryBlock; // เริ่มกล่องใหม่
@@ -72,7 +74,7 @@ export async function POST(req: Request) {
 
     summaryBlock += `👨‍💻 ผู้ส่ง: ${senderName}`;
 
-    // 🔴 เช็คกล่องสุดท้ายว่ารวมสรุปแล้วล้นไหม
+    // เช็คกล่องสุดท้ายว่ารวมสรุปแล้วล้นไหม
     if (currentText.length + summaryBlock.length > 3500) {
       messagesToSend.push(currentText);
       messagesToSend.push(summaryBlock);
