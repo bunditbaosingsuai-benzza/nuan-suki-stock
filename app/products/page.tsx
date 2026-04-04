@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useBranch } from '../context/BranchContext' 
 
 interface Category { name: string; }
-interface Product { id: number; name: string; unit: string; max_limit: number | null; min_limit: number | null; category_id: number | null; raw_material_id: number | null; hide_used: boolean | null; categories: Category | null; }
+interface Product { id: number; name: string; unit: string; max_limit: number | null; min_limit: number | null; category_id: number | null; raw_material_id: number | null; hide_used: boolean | null; order_interval_days: number; categories: Category | null; }
 
 export default function ProductsPage() {
   const { currentBranch } = useBranch() 
@@ -18,6 +18,7 @@ export default function ProductsPage() {
   const [minLimit, setMinLimit] = useState('')
   const [rawMaterialId, setRawMaterialId] = useState<string>('') 
   const [hideUsed, setHideUsed] = useState(false)
+  const [orderInterval, setOrderInterval] = useState('0')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -34,6 +35,7 @@ export default function ProductsPage() {
   const [editMinLimit, setEditMinLimit] = useState('')
   const [editRawMaterialId, setEditRawMaterialId] = useState<string>('') 
   const [editHideUsed, setEditHideUsed] = useState(false)
+  const [editOrderInterval, setEditOrderInterval] = useState('0')
 
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: number | null; name: string }>({ isOpen: false, id: null, name: '' })
   const today = new Date()
@@ -42,7 +44,6 @@ export default function ProductsPage() {
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   
-  // 🔴 1. เพิ่มตัวจับตำแหน่งให้แถบเมนูแนวนอน
   const horizontalScrollRef = useRef<HTMLDivElement>(null)
   const categoryBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
@@ -73,9 +74,9 @@ export default function ProductsPage() {
           if (catError) throw catError; if (newCat) categoryId = newCat.id
         }
       }
-      const { error: prodError } = await supabase.from('products').insert([{ name, category_id: categoryId, unit, max_limit: maxLimit ? parseFloat(maxLimit) : null, min_limit: minLimit ? parseFloat(minLimit) : null, raw_material_id: rawMaterialId ? parseInt(rawMaterialId) : null, hide_used: hideUsed, branch_id: currentBranch.id }])
+      const { error: prodError } = await supabase.from('products').insert([{ name, category_id: categoryId, unit, max_limit: maxLimit ? parseFloat(maxLimit) : null, min_limit: minLimit ? parseFloat(minLimit) : null, raw_material_id: rawMaterialId ? parseInt(rawMaterialId) : null, hide_used: hideUsed, order_interval_days: parseInt(orderInterval) || 0, branch_id: currentBranch.id }])
       if (prodError) throw prodError
-      setName(''); setCategoryName(''); setUnit(''); setMaxLimit(''); setMinLimit(''); setRawMaterialId(''); setHideUsed(false);
+      setName(''); setCategoryName(''); setUnit(''); setMaxLimit(''); setMinLimit(''); setRawMaterialId(''); setHideUsed(false); setOrderInterval('0');
       fetchProducts()
     } catch (error: any) { alert('❌ เกิดข้อผิดพลาด: ' + error.message) } finally { setIsSubmitting(false) }
   }
@@ -92,7 +93,7 @@ export default function ProductsPage() {
           if (catError) throw catError; if (newCat) categoryId = newCat.id
         }
       }
-      const { error } = await supabase.from('products').update({ name: editName, category_id: categoryId, unit: editUnit, max_limit: editMaxLimit === '' ? null : parseFloat(editMaxLimit), min_limit: editMinLimit === '' ? null : parseFloat(editMinLimit), raw_material_id: editRawMaterialId === '' ? null : parseInt(editRawMaterialId), hide_used: editHideUsed }).eq('id', id)
+      const { error } = await supabase.from('products').update({ name: editName, category_id: categoryId, unit: editUnit, max_limit: editMaxLimit === '' ? null : parseFloat(editMaxLimit), min_limit: editMinLimit === '' ? null : parseFloat(editMinLimit), raw_material_id: editRawMaterialId === '' ? null : parseInt(editRawMaterialId), hide_used: editHideUsed, order_interval_days: parseInt(editOrderInterval) || 0 }).eq('id', id)
       if (error) throw error
       setEditingProductId(null)
       fetchProducts()
@@ -113,7 +114,6 @@ export default function ProductsPage() {
   const handleScroll = () => { if (!tableContainerRef.current) return; const scrollPosition = tableContainerRef.current.scrollTop + 80; let currentActive = ''; for (const cat of Object.keys(groupedProducts)) { const el = categoryRefs.current[cat]; if (el && el.offsetTop <= scrollPosition) currentActive = cat; } if (currentActive && currentActive !== activeCategory) setActiveCategory(currentActive); };
   const scrollToCategory = (cat: string) => { const el = categoryRefs.current[cat]; if (el && tableContainerRef.current) { tableContainerRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 75), behavior: 'smooth' }); setActiveCategory(cat); } };
 
-  // 🔴 2. ฟังก์ชันสั่งเลื่อนปุ่มมาตรงกลาง
   useEffect(() => {
     if (activeCategory && horizontalScrollRef.current && categoryBtnRefs.current[activeCategory]) {
       const container = horizontalScrollRef.current;
@@ -145,6 +145,9 @@ export default function ProductsPage() {
           <div className="flex-1 min-w-[150px]"><label className="block text-sm font-bold text-gray-700 mb-2">หน่วยนับ</label><div onClick={() => { setModalTarget('add'); setIsUnitModalOpen(true); }} className={`w-full border rounded-xl p-3 cursor-pointer transition-colors text-sm sm:text-base flex justify-between items-center ${unit ? 'border-[#df2323] bg-white text-gray-900 font-bold' : 'border-[#df2323] bg-white text-gray-400'}`}><span>{unit || 'เลือกหน่วยนับ...'}</span><span className="text-gray-400 text-xs">▼</span></div></div>
           <div className="w-full sm:w-24"><label className="block text-sm font-bold text-gray-700 mb-2">ห้ามเกิน</label><input type="number" step="any" value={maxLimit} onChange={(e) => setMaxLimit(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors text-sm sm:text-base" placeholder="Max" /></div>
           <div className="w-full sm:w-24"><label className="block text-sm font-bold text-gray-700 mb-2">ขั้นต่ำ</label><input type="number" step="any" value={minLimit} onChange={(e) => setMinLimit(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#df2323] transition-colors text-sm sm:text-base" placeholder="Min" /></div>
+          
+          <div className="w-full sm:w-24"><label className="block text-sm font-bold text-blue-600 mb-2">เว้นระยะสั่ง</label><input type="number" value={orderInterval} onChange={(e) => setOrderInterval(e.target.value)} className="w-full border border-blue-200 bg-blue-50/30 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors text-sm sm:text-base" placeholder="วัน" /></div>
+
           <div className="flex-1 min-w-full sm:min-w-[150px]"><label className="block text-sm font-bold text-blue-600 mb-2">ผูกกับของสด</label><select value={rawMaterialId} onChange={(e) => setRawMaterialId(e.target.value)} className="w-full border border-blue-200 bg-blue-50/50 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors text-sm sm:text-base text-gray-700"><option value="">-- ไม่มีการผูก --</option>{rawMaterialOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
           <div className="w-full lg:w-auto flex items-center gap-2 bg-gray-50 px-4 py-3.5 rounded-xl border border-gray-200 h-[52px]"><input type="checkbox" id="hideUsedCheckbox" checked={hideUsed} onChange={(e) => setHideUsed(e.target.checked)} className="w-5 h-5 text-[#df2323] rounded border-gray-300 focus:ring-[#df2323] cursor-pointer" /><label htmlFor="hideUsedCheckbox" className="text-sm font-bold text-gray-700 cursor-pointer select-none">ซ่อนยอดใช้ไป</label></div>
           <button type="submit" disabled={isSubmitting} className="bg-[#059669] hover:bg-[#047857] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[52px] w-full xl:w-auto">{isSubmitting ? 'กำลังบันทึก...' : '+ เพิ่มลงตาราง'}</button>
@@ -152,15 +155,9 @@ export default function ProductsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
-        {/* 🔴 3. ผูก Ref เข้ากับแถบเลื่อนและปุ่ม */}
         <div ref={horizontalScrollRef} className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-50 shadow-sm p-2 gap-2 px-4 items-center scroll-smooth">
           {Object.keys(groupedProducts).map(cat => (
-            <button 
-              key={cat} 
-              ref={(el) => { categoryBtnRefs.current[cat] = el; }}
-              onClick={() => scrollToCategory(cat)} 
-              className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}
-            >
+            <button key={cat} ref={(el) => { categoryBtnRefs.current[cat] = el; }} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#df2323] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>
               {cat}
             </button>
           ))}
@@ -169,14 +166,19 @@ export default function ProductsPage() {
           <table className="w-full text-center border-collapse">
             <thead className="sticky top-0 z-30 bg-[#f8f9fa] shadow-sm">
               <tr className="text-sm border-b border-gray-200">
-                <th className="p-5 font-bold text-gray-700 text-left sticky left-0 top-0 z-40 bg-[#f8f9fa] border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px] whitespace-nowrap">รายการสินค้า</th><th className="p-5 font-bold text-gray-700 bg-[#f8f9fa] whitespace-nowrap">หน่วย</th><th className="p-5 font-bold text-blue-600 bg-[#f8f9fa] whitespace-nowrap">ผูกกับของสด</th><th className="p-5 font-bold text-gray-700 bg-[#f8f9fa] whitespace-nowrap">ห้ามเกิน / ขั้นต่ำ</th><th className="p-5 font-bold text-gray-700 text-right bg-[#f8f9fa] whitespace-nowrap">จัดการ</th>
+                <th className="p-5 font-bold text-gray-700 text-left sticky left-0 top-0 z-40 bg-[#f8f9fa] border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[140px] sm:min-w-[200px] whitespace-nowrap">รายการสินค้า</th>
+                <th className="p-5 font-bold text-gray-700 bg-[#f8f9fa] whitespace-nowrap">หน่วย</th>
+                <th className="p-5 font-bold text-blue-600 bg-[#f8f9fa] whitespace-nowrap">ผูกกับของสด</th>
+                <th className="p-5 font-bold text-gray-700 bg-[#f8f9fa] whitespace-nowrap">ห้ามเกิน / ขั้นต่ำ</th>
+                <th className="p-5 font-bold text-blue-600 bg-[#f8f9fa] whitespace-nowrap">เว้นระยะสั่ง</th>
+                <th className="p-5 font-bold text-gray-700 text-right bg-[#f8f9fa] whitespace-nowrap">จัดการ</th>
               </tr>
             </thead>
             <tbody className="bg-white">
-              {products.length === 0 ? (<tr><td colSpan={5} className="p-12 text-gray-400">ยังไม่มีรายการสินค้าในสาขานี้</td></tr>) : (
+              {products.length === 0 ? (<tr><td colSpan={6} className="p-12 text-gray-400">ยังไม่มีรายการสินค้าในสาขานี้</td></tr>) : (
                 Object.entries(groupedProducts).map(([category, items]) => (
                   <React.Fragment key={category}>
-                    <tr ref={(el) => { categoryRefs.current[category] = el; }} className="bg-gray-100 border-y border-gray-200"><td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">📂 {category}</td><td colSpan={4} className="bg-gray-100"></td></tr>
+                    <tr ref={(el) => { categoryRefs.current[category] = el; }} className="bg-gray-100 border-y border-gray-200"><td className="p-3 pl-6 text-left font-bold text-gray-800 text-sm sticky left-0 z-20 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">📂 {category}</td><td colSpan={5} className="bg-gray-100"></td></tr>
                     {items.map((product) => (
                       <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
                         {editingProductId === product.id ? (
@@ -191,6 +193,8 @@ export default function ProductsPage() {
                             <td className="p-3"><div onClick={() => { setModalTarget('edit'); setIsUnitModalOpen(true); }} className="w-20 mx-auto border-2 border-blue-400 rounded-lg p-2.5 text-center cursor-pointer bg-white text-gray-700 text-sm font-semibold">{editUnit || 'หน่วย...'}</div></td>
                             <td className="p-3"><select value={editRawMaterialId} onChange={(e) => setEditRawMaterialId(e.target.value)} className="w-full border-2 border-blue-300 bg-blue-50 rounded-lg p-2.5 text-sm focus:outline-none text-gray-700 font-semibold"><option value="">-- ไม่ผูก --</option>{rawMaterialOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
                             <td className="p-3 flex gap-2 justify-center items-center h-full"><div className="flex flex-col items-center gap-1"><span className="text-[10px] text-gray-500 font-semibold">Max</span><input type="number" step="any" className="w-16 border-2 border-blue-400 rounded-lg p-2 text-center text-[#3b82f6] font-bold focus:outline-none" placeholder="Max" value={editMaxLimit} onChange={(e) => setEditMaxLimit(e.target.value)} /></div><div className="flex flex-col items-center gap-1"><span className="text-[10px] text-gray-500 font-semibold">Min</span><input type="number" step="any" className="w-16 border-2 border-[#df2323] rounded-lg p-2 text-center text-[#df2323] font-bold focus:outline-none" placeholder="Min" value={editMinLimit} onChange={(e) => setEditMinLimit(e.target.value)} /></div></td>
+                            
+                            <td className="p-3"><div className="flex flex-col items-center gap-1"><span className="text-[10px] text-gray-500 font-semibold">เว้น (วัน)</span><input type="number" className="w-16 border-2 border-blue-400 rounded-lg p-2 text-center text-blue-600 font-bold focus:outline-none" value={editOrderInterval} onChange={(e) => setEditOrderInterval(e.target.value)} /></div></td>
                             <td className="p-3 text-right"><div className="flex flex-col gap-1.5 items-end justify-center h-full"><button onClick={() => handleSaveProduct(product.id)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-4 py-2 rounded-lg font-bold w-full transition-colors shadow-sm">บันทึก</button><button onClick={() => setEditingProductId(null)} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[11px] px-4 py-2 rounded-lg font-bold w-full transition-colors">ยกเลิก</button></div></td>
                           </>
                         ) : (
@@ -199,7 +203,9 @@ export default function ProductsPage() {
                             <td className="p-4 font-semibold text-gray-600">{product.unit}</td>
                             <td className="p-4 font-semibold text-blue-600">{product.raw_material_id ? products.find(p => p.id === product.raw_material_id)?.name || '-' : '-'}</td>
                             <td className="p-4 font-bold"><span className="text-[#3b82f6] mr-2">Max: {product.max_limit !== null ? product.max_limit : '-'}</span><span className="text-[#df2323]">Min: {product.min_limit !== null ? product.min_limit : '-'}</span></td>
-                            <td className="p-4 text-right"><div className="flex flex-col gap-1.5 items-end"><button onClick={() => { setEditingProductId(product.id); setEditName(product.name); setEditCategoryName(product.categories?.name || ''); setEditUnit(product.unit || ''); setEditMaxLimit(product.max_limit !== null ? String(product.max_limit) : ''); setEditMinLimit(product.min_limit !== null ? String(product.min_limit) : ''); setEditRawMaterialId(product.raw_material_id !== null ? String(product.raw_material_id) : ''); setEditHideUsed(product.hide_used || false); }} className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 text-xs px-4 py-1.5 rounded-full font-semibold">✏️ แก้ไข</button><button onClick={() => setDeleteModal({ isOpen: true, id: product.id, name: product.name })} className="bg-[#be123c] text-white hover:bg-[#9f1239] text-xs px-4 py-1.5 rounded-full font-semibold">ลบรายการ</button></div></td>
+                            
+                            <td className="p-4 font-bold text-blue-600 bg-blue-50/30">{product.order_interval_days > 0 ? `${product.order_interval_days} วัน` : '-'}</td>
+                            <td className="p-4 text-right"><div className="flex flex-col gap-1.5 items-end"><button onClick={() => { setEditingProductId(product.id); setEditName(product.name); setEditCategoryName(product.categories?.name || ''); setEditUnit(product.unit || ''); setEditMaxLimit(product.max_limit !== null ? String(product.max_limit) : ''); setEditMinLimit(product.min_limit !== null ? String(product.min_limit) : ''); setEditRawMaterialId(product.raw_material_id !== null ? String(product.raw_material_id) : ''); setEditHideUsed(product.hide_used || false); setEditOrderInterval(String(product.order_interval_days || '0')); }} className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 text-xs px-4 py-1.5 rounded-full font-semibold">✏️ แก้ไข</button><button onClick={() => setDeleteModal({ isOpen: true, id: product.id, name: product.name })} className="bg-[#be123c] text-white hover:bg-[#9f1239] text-xs px-4 py-1.5 rounded-full font-semibold">ลบรายการ</button></div></td>
                           </>
                         )}
                       </tr>
