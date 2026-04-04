@@ -17,7 +17,8 @@ export default function Sidebar() {
     { name: 'เช็คของรายวัน', icon: '📅', path: '/check', show: true },
     { name: 'ประวัติการทำรายการ', icon: '🕒', path: '/history', show: true },
     { name: 'ประวัติการส่งรายงาน', icon: '📋', path: '/reports', show: true },
-    { name: 'รายการสินค้า', icon: '📦', path: '/products', show: isManager }, 
+    // 🔴 เปลี่ยนจาก isManager เป็น true เพื่อให้พนักงานทั่วไปเห็นปุ่มนี้ด้วย
+    { name: 'รายการสินค้า', icon: '📦', path: '/products', show: true }, 
   ]
 
   const handleLogout = async () => {
