@@ -11,9 +11,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 })
     }
 
-    // 1. เตรียม HTML สำหรับสร้าง PDF
+    // 1. เตรียม HTML สำหรับสร้าง PDF (อิงข้อมูลที่หน้าแดชบอร์ดคำนวณมาให้แล้ว)
     const groupedData = fullReportData.reduce((acc: any, item: any) => {
-      const categoryName = item.products?.categories?.name || 'ไม่มีหมวดหมู่'
+      const categoryName = item.category || 'ไม่มีหมวดหมู่'
       if (!acc[categoryName]) { acc[categoryName] = [] }
       acc[categoryName].push(item)
       return acc
@@ -28,46 +28,34 @@ export async function POST(req: Request) {
       `
       
       ;(items as any[]).forEach(item => {
-        const productName = item.products?.name || '-'
-        const unit = item.products?.unit || ''
-        const minLimit = item.products?.min_limit
-        const maxLimit = item.products?.max_limit
+        const productName = item.name || '-'
+        const unit = item.unit || ''
         
-        const yest = item.yesterday_balance || 0
-        const inc = item.incoming || 0
-        const total = Number((yest + inc).toFixed(1))
-        
-        const eve = item.evening_counted !== null ? Number(item.evening_counted.toFixed(1)) : '-'
-        const used = item.evening_counted !== null && !item.products?.hide_used ? Number((total - item.evening_counted).toFixed(1)) : '-'
-        
-        let calcOrderAmt = 0;
-        let totalCombinedStock = item.evening_counted !== null ? item.evening_counted : total;
-        
-        const linkedItems = fullReportData.filter((r: any) => r.products?.raw_material_id === item.product_id);
-        linkedItems.forEach((linked: any) => {
-             totalCombinedStock += linked.evening_counted !== null ? linked.evening_counted : (linked.yesterday_balance + linked.incoming);
-        });
+        // ใช้ค่าที่หน้าเว็บคำนวณมาให้แล้วโดยตรง ไม่ต้อง .toFixed() ซ้ำ
+        const yest = item.yesterday !== undefined ? item.yesterday : '-'
+        const inc = item.incoming !== undefined ? item.incoming : '-'
+        const eve = item.evening !== undefined ? item.evening : '-'
+        const used = item.used !== undefined ? item.used : '-'
+        const orderText = item.orderAmount !== undefined ? item.orderAmount : '-'
 
-        if (item.evening_counted !== null && minLimit !== null && maxLimit !== null) {
-            if (totalCombinedStock <= minLimit) {
-                calcOrderAmt = Math.ceil(maxLimit - totalCombinedStock);
-            }
+        // แต่งสีตัวอักษรยอดสั่ง
+        let orderHtml = orderText
+        if (String(orderText).includes('+')) {
+            orderHtml = `<span style="color: #be123c; font-weight: bold;">${orderText}</span>`
+        } else if (String(orderText).includes('รอของ')) {
+            orderHtml = `<span style="color: #3b82f6; font-weight: bold;">⏳ รอของ</span>`
         }
-
-        const finalOrderAmt = item.actual_order_qty !== null ? item.actual_order_qty : calcOrderAmt;
-        const orderText = finalOrderAmt > 0 ? `<span style="color: #be123c; font-weight: bold;">+${finalOrderAmt}</span>` : '-'
 
         tableRowsHtml += `
           <tr>
             <td>
                <div style="font-weight: bold; color: #1f2937;">${productName} <span style="font-size: 10px; color: #6b7280; font-weight: normal;">(${unit})</span></div>
-               <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">Min: ${minLimit || '-'} | Max: ${maxLimit || '-'}</div>
             </td>
             <td style="text-align: center; color: #b45309;">${yest}</td>
             <td style="text-align: center; color: #b45309;">${inc}</td>
             <td style="text-align: center; font-weight: bold; color: #1d4ed8;">${eve}</td>
             <td style="text-align: center; color: #374151;">${used}</td>
-            <td style="text-align: center; font-weight: bold; background-color: #fff1f2;">${orderText}</td>
+            <td style="text-align: center; font-weight: bold; background-color: #fff1f2;">${orderHtml}</td>
           </tr>
         `
       })
@@ -146,7 +134,7 @@ export async function POST(req: Request) {
       attachments: [
         {
           filename: `Stock_Report_${rawDate}.pdf`,
-          content: Buffer.from(pdfBuffer), // 🔴 แก้ไขตรงนี้ แปลงให้เป็น Buffer
+          content: Buffer.from(pdfBuffer),
           contentType: 'application/pdf'
         }
       ]
