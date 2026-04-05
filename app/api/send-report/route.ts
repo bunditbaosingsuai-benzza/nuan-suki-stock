@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium'
+import chromium from '@sparticuz/chromium-min' // 🔴 เปลี่ยนมาใช้รุ่น -min
 import { supabase } from '../../../lib/supabase'
 
 export async function POST(req: Request) {
@@ -101,18 +101,18 @@ export async function POST(req: Request) {
       </html>
     `
 
-    // 🔴 2. สร้าง PDF ด้วย Puppeteer แบบรองรับ Vercel
+    // 🔴 2. สร้าง PDF ด้วย Puppeteer แบบโหลดตรงจาก Github (รอด Vercel 100%)
     const isLocal = process.env.NODE_ENV === 'development';
     
     const executablePath = isLocal 
       ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' 
-      : await chromium.executablePath();
+      : await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v122.0.0/chromium-v122.0.0-pack.tar');
 
     const browser = await puppeteer.launch({
       args: isLocal ? ['--no-sandbox'] : chromium.args,
       defaultViewport: { width: 1920, height: 1080 },
       executablePath: executablePath,
-      headless: true, // 🔴 แก้ตรงนี้ครับ บังคับเป็น true ไปเลย จบปัญหา!
+      headless: true, 
     })
 
     const page = await browser.newPage()
