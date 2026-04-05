@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium-min' // 🔴 เปลี่ยนมาใช้รุ่น -min
+import chromium from '@sparticuz/chromium-min' 
 import { supabase } from '../../../lib/supabase'
 
 export async function POST(req: Request) {
@@ -66,8 +66,11 @@ export async function POST(req: Request) {
       <head>
         <meta charset="utf-8">
         <title>รายงานสต๊อก</title>
+        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+        
         <style>
-          body { font-family: 'Sarabun', Tahoma, sans-serif; padding: 20px; color: #1f2937; }
+          /* 🔴 บังคับให้ใช้ฟอนต์ Sarabun ที่เพิ่งโหลดมา */
+          body { font-family: 'Sarabun', sans-serif; padding: 20px; color: #1f2937; }
           h1 { color: #be123c; border-bottom: 2px solid #be123c; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px;}
           .header-info { margin-bottom: 20px; font-size: 14px; }
           table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
@@ -101,7 +104,7 @@ export async function POST(req: Request) {
       </html>
     `
 
-    // 🔴 2. สร้าง PDF ด้วย Puppeteer แบบโหลดตรงจาก Github (รอด Vercel 100%)
+    // 2. สร้าง PDF ด้วย Puppeteer
     const isLocal = process.env.NODE_ENV === 'development';
     
     const executablePath = isLocal 
@@ -116,7 +119,8 @@ export async function POST(req: Request) {
     })
 
     const page = await browser.newPage()
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
+    // รอให้หน้าเว็บ (และฟอนต์) โหลดเสร็จ 100% ค่อยถ่าย PDF
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' }) 
     
     const pdfBuffer = await page.pdf({
       format: 'A4',
