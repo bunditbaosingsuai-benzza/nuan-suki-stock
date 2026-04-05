@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import { supabase } from '../../../lib/supabase'
 
 export async function POST(req: Request) {
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' }, { status: 400 })
     }
 
-    // 1. เตรียม HTML สำหรับสร้าง PDF (อิงข้อมูลที่หน้าแดชบอร์ดคำนวณมาให้แล้ว)
+    // 1. เตรียม HTML สำหรับสร้าง PDF
     const groupedData = fullReportData.reduce((acc: any, item: any) => {
       const categoryName = item.category || 'ไม่มีหมวดหมู่'
       if (!acc[categoryName]) { acc[categoryName] = [] }
@@ -31,14 +32,12 @@ export async function POST(req: Request) {
         const productName = item.name || '-'
         const unit = item.unit || ''
         
-        // ใช้ค่าที่หน้าเว็บคำนวณมาให้แล้วโดยตรง ไม่ต้อง .toFixed() ซ้ำ
         const yest = item.yesterday !== undefined ? item.yesterday : '-'
         const inc = item.incoming !== undefined ? item.incoming : '-'
         const eve = item.evening !== undefined ? item.evening : '-'
         const used = item.used !== undefined ? item.used : '-'
         const orderText = item.orderAmount !== undefined ? item.orderAmount : '-'
 
-        // แต่งสีตัวอักษรยอดสั่ง
         let orderHtml = orderText
         if (String(orderText).includes('+')) {
             orderHtml = `<span style="color: #be123c; font-weight: bold;">${orderText}</span>`
@@ -102,10 +101,20 @@ export async function POST(req: Request) {
       </html>
     `
 
-    // 2. สร้าง PDF ด้วย Puppeteer
+    // 🔴 2. สร้าง PDF ด้วย Puppeteer แบบรองรับ Vercel
+    const isLocal = process.env.NODE_ENV === 'development';
+    
+    const executablePath = isLocal 
+      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' 
+      : await chromium.executablePath();
+
     const browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: isLocal ? ['--no-sandbox'] : chromium.args,
+      defaultViewport: { width: 1920, height: 1080 },
+      executablePath: executablePath,
+      headless: true, // 🔴 แก้ตรงนี้ครับ บังคับเป็น true ไปเลย จบปัญหา!
     })
+
     const page = await browser.newPage()
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
     
