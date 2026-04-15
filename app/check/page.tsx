@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useBranch } from '../context/BranchContext' 
 
-interface Product { id: number; name: string; unit: string; min_limit: number | null; max_limit: number | null; hide_used: boolean | null; raw_material_id: number | null; order_interval_days: number; categories?: { name: string } | null; }
+interface Product { id: number; name: string; unit: string; min_limit: number | null; max_limit: number | null; hide_used: boolean | null; raw_material_id: number | null; categories?: { name: string } | null; }
 interface DailyCheck { id: number; product_id: number; check_date: string; yesterday_balance: number; incoming: number; evening_counted: number | null; actual_order_qty?: number | null; }
 
 export default function DailyCheckPage() {
@@ -13,7 +13,6 @@ export default function DailyCheckPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [todayChecks, setTodayChecks] = useState<DailyCheck[]>([])
   const [latestPastChecks, setLatestPastChecks] = useState<Record<number, DailyCheck>>({})
-  const [recentOrders, setRecentOrders] = useState<Record<number, string>>({}) // 🔴 เพิ่ม State เก็บประวัติสั่ง
   
   const [selectedProductId, setSelectedProductId] = useState('')
   const [selectedProductName, setSelectedProductName] = useState('')
@@ -54,13 +53,6 @@ export default function DailyCheckPage() {
     const latestMap: Record<number, DailyCheck> = {}
     if (pastData) { pastData.forEach((check: any) => { if (!latestMap[check.product_id]) latestMap[check.product_id] = check as DailyCheck }) }
     setLatestPastChecks(latestMap)
-
-    // 🔴 ดึงวันที่สั่งล่าสุด
-    const { data: orderHistory } = await supabase
-      .from('daily_stock_checks').select('product_id, check_date').gt('actual_order_qty', 0).lt('check_date', todayForDB).eq('branch_id', currentBranch.id).order('check_date', { ascending: false });
-    const recentOrderMap: Record<number, string> = {}
-    if (orderHistory) { orderHistory.forEach(item => { if (!recentOrderMap[item.product_id]) recentOrderMap[item.product_id] = item.check_date }) }
-    setRecentOrders(recentOrderMap)
   }
 
   useEffect(() => { if (currentBranch) fetchData() }, [currentBranch])
@@ -71,14 +63,6 @@ export default function DailyCheckPage() {
     let defaultLatestBalance = 0;
     if (latestCheck) { if (latestCheck.evening_counted !== null) defaultLatestBalance = Number(latestCheck.evening_counted); else defaultLatestBalance = Number((latestCheck.yesterday_balance || 0) + (latestCheck.incoming || 0)); }
 
-    // 🔴 คำนวณ Cooldown
-    let isOnCooldown = false;
-    if (product.order_interval_days > 0 && recentOrders[product.id]) {
-      const lastDate = new Date(recentOrders[product.id]); const currDate = new Date(todayForDB);
-      const diffDays = Math.ceil(Math.abs(currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= product.order_interval_days) isOnCooldown = true;
-    }
-
     return { 
       id: product.id, name: product.name, categoryName: product.categories?.name || 'ไม่มีหมวดหมู่', unit: product.unit, 
       min_limit: product.min_limit, max_limit: product.max_limit, hide_used: product.hide_used, raw_material_id: product.raw_material_id, 
@@ -86,8 +70,7 @@ export default function DailyCheckPage() {
       actual_order_qty: tCheck?.actual_order_qty !== undefined ? tCheck.actual_order_qty : null,
       yesterday_balance: tCheck ? Number(tCheck.yesterday_balance || 0) : defaultLatestBalance, 
       incoming: tCheck ? Number(tCheck.incoming || 0) : 0, 
-      evening_counted: tCheck && tCheck.evening_counted !== null ? Number(tCheck.evening_counted) : null,
-      isOnCooldown 
+      evening_counted: tCheck && tCheck.evening_counted !== null ? Number(tCheck.evening_counted) : null
     }
   })
 
@@ -161,7 +144,8 @@ export default function DailyCheckPage() {
         
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8"><div className="bg-[#facc15] p-3 sm:p-4 px-4 sm:px-8 text-white font-bold flex items-center gap-2 sm:gap-3 border-b border-[#eab308]"><span className="text-xl sm:text-2xl">☀️</span> <span className="text-sm sm:text-base">บันทึกยอดตอนเช้า (เปิดร้าน / รับของเข้า)</span></div><form onSubmit={handleMorningSubmit} className="p-4 sm:p-8 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-4 sm:gap-6"><div className="flex-1 min-w-full sm:min-w-[250px]"><label className="block text-sm font-semibold text-gray-700 mb-1.5">เลือกสินค้า</label><div onClick={() => setIsModalOpen(true)} className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] bg-white shadow-inner transition-colors text-sm sm:text-base cursor-pointer flex justify-between items-center"><span className={selectedProductName ? 'text-gray-900 font-bold' : 'text-gray-400'}>{selectedProductName ? `🛒 ${selectedProductName}` : '-- คลิกเพื่อเลือกสินค้า --'}</span><span className="text-gray-400">🔍</span></div></div><div className="w-full sm:w-40"><label className="block text-sm font-semibold text-gray-700 mb-1.5">ยอดเหลือล่าสุด</label><input type="number" step="any" value={yesterdayBalance} onChange={(e) => setYesterdayBalance(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors bg-gray-50 text-sm sm:text-base" placeholder="0" /></div><div className="w-full sm:w-40"><label className="block text-sm font-semibold text-gray-700 mb-1.5">ของเข้าวันนี้</label><input type="number" step="any" required value={incoming} onChange={(e) => setIncoming(e.target.value)} className="w-full border border-gray-200 rounded-xl p-3 sm:p-3.5 focus:outline-none focus:border-[#facc15] shadow-inner transition-colors text-sm sm:text-base" placeholder="รับมา" /></div><button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold shadow-md transition-colors disabled:opacity-50 h-[50px] sm:h-[58px] w-full sm:w-auto flex-shrink-0">{isSubmitting ? 'กำลังบันทึก...' : '+ เพิ่มลงตาราง'}</button></form></div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[75vh] min-h-[500px]">
+        {/* 🔴 แก้ไข CSS ส่วนนี้ให้ตารางยาวขึ้น (ปรับ h-[85vh] และ min-h ให้สูงขึ้น) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[85vh] lg:h-[88vh] min-h-[650px] lg:min-h-[800px]">
           <div className="bg-[#2563eb] p-4 px-8 text-white font-bold flex items-center justify-between gap-3 flex-shrink-0 relative z-20"><div className="flex items-center gap-3"><span className="text-2xl">🌙</span> ตารางเช็คของตอนเย็น (ปิดร้าน)</div><div className="text-sm bg-[#1d4ed8] px-4 py-1.5 rounded-full shadow-inner font-medium">{tableRows.length} รายการ</div></div>
           <div ref={horizontalScrollRef} className="bg-white border-b border-gray-100 flex overflow-x-auto custom-scrollbar flex-shrink-0 relative z-20 shadow-sm p-2 gap-2 px-4 items-center scroll-smooth">{categoriesList.map(cat => (<button key={cat} ref={(el) => { categoryBtnRefs.current[cat] = el; }} onClick={() => scrollToCategory(cat)} className={`px-4 py-2 text-sm font-bold whitespace-nowrap rounded-full transition-all border border-transparent ${activeCategory === cat ? 'bg-[#2563eb] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>{cat}</button>))}</div>
           <div ref={tableContainerRef} onScroll={handleScroll} className="overflow-auto flex-1 custom-scrollbar relative bg-gray-50/30 scroll-smooth">
@@ -197,10 +181,7 @@ export default function DailyCheckPage() {
                         if (item.evening_counted !== null && item.min_limit !== null && item.max_limit !== null) { if (totalCombinedStock <= item.min_limit) { calcOrderAmt = Math.ceil(item.max_limit - totalCombinedStock); } }
 
                         const finalOrderAmt = item.actual_order_qty !== null ? item.actual_order_qty : calcOrderAmt;
-                        
-                        // 🔴 เช็คและแสดงผลว่าต้องสั่งไหม (รวมกรณีติดพักเบรกสั่งของ)
-                        let needsOrder = finalOrderAmt > 0;
-                        if (item.isOnCooldown && item.actual_order_qty === null) needsOrder = false;
+                        const needsOrder = finalOrderAmt > 0;
 
                         return (
                           <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors group">
@@ -246,8 +227,7 @@ export default function DailyCheckPage() {
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-center justify-center">
-                                  {/* 🔴 ถ้าพักสั่ง จะขึ้นว่า รอของ */}
-                                  <span className={needsOrder ? "text-xl sm:text-2xl" : "text-lg"}>{needsOrder ? `+${finalOrderAmt}` : (item.isOnCooldown && item.actual_order_qty === null ? <span className="text-blue-500 text-sm">⏳ รอของ</span> : '-')}</span>
+                                  <span className={needsOrder ? "text-xl sm:text-2xl" : "text-lg"}>{needsOrder ? `+${finalOrderAmt}` : '-'}</span>
                                   <button onClick={() => { setEditingOrderId(item.id); setEditOrderQty(finalOrderAmt === 0 ? '' : String(finalOrderAmt)); }} className={`mt-1.5 text-[10px] sm:text-xs bg-white border px-2.5 sm:px-3 py-1 rounded-full font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1 w-fit mx-auto ${needsOrder ? 'border-red-200 text-[#be123c] hover:bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                                     ✏️ {needsOrder ? 'แก้ไข' : 'สั่งเพิ่ม'}
                                   </button>
@@ -267,7 +247,7 @@ export default function DailyCheckPage() {
           </div>
         </div>
         
-        {/* ... (Modal เลือกสินค้า โค้ดเดิมยาวๆ คงไว้ครับ ไม่ได้แก้ตรงนี้) ... */}
+        {/* ... Modal เลือกสินค้า (เหมือนเดิม) ... */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 animate-in fade-in duration-200">
             <div className="bg-[#f8f9fa] rounded-3xl shadow-2xl w-[calc(100%-2rem)] sm:w-[calc(100%-4rem)] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden mx-auto">
