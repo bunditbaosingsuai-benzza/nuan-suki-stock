@@ -13,15 +13,15 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<ReportRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
+  const [reportDataForEmail, setReportDataForEmail] = useState<any[]>([])
 
   const fetchReports = async () => {
     if (!currentBranch) return;
     setIsLoading(true)
     
     // ดึงข้อมูลอีเมลทั้งหมดของสาขานี้
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('email_reports')
       .select('*')
       .eq('branch_id', currentBranch.id)
@@ -34,10 +34,32 @@ export default function ReportsPage() {
       })
       setReports(filteredData as ReportRecord[])
     }
+
+    // ดึงข้อมูลสต๊อกของวันนั้นมาเตรียมไว้ทำ PDF
+    const { data: stockData } = await supabase
+      .from('daily_stock_checks')
+      .select('*, products(name, unit, categories(name))')
+      .eq('check_date', selectedDate)
+      .eq('branch_id', currentBranch.id);
+    
+    if (stockData) {
+      const prepared = stockData.map((item: any) => ({
+        name: item.products?.name,
+        category: item.products?.categories?.name || 'ไม่มีหมวดหมู่',
+        unit: item.products?.unit,
+        yesterday: item.yesterday_balance || 0,
+        incoming: item.incoming || 0,
+        evening: item.evening_counted !== null ? item.evening_counted : '-',
+        used: item.evening_counted !== null ? Number((item.yesterday_balance + item.incoming - item.evening_counted).toFixed(1)) : '-',
+        orderAmount: item.actual_order_qty && item.actual_order_qty > 0 ? `+${item.actual_order_qty}` : '-'
+      }))
+      setReportDataForEmail(prepared)
+    }
+    
     setIsLoading(false)
   }
 
-  // โหลดใหม่เมื่อเปลี่ยนสาขา, เปลี่ยนวันที่, หรือส่งเมลเสร็จ
+  // โหลดใหม่เมื่อเปลี่ยนสาขา, เปลี่ยนวันที่, หรือปิด Modal ส่งเมล
   useEffect(() => { if (currentBranch) fetchReports() }, [isModalOpen, currentBranch, selectedDate]) 
 
   const formatTime = (isoString: string) => { const d = new Date(isoString); return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'; }
@@ -63,7 +85,6 @@ export default function ReportsPage() {
         </div>
 
         <div className="flex gap-2">
-          {/* 🔴 เหลือแค่ปุ่มส่งรายงานเอกสาร */}
           <button onClick={() => setIsModalOpen(true)} className="bg-[#df2323] hover:bg-[#be123c] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md transition-all flex items-center gap-2">
             🚀 ส่งรายงานเอกสาร
           </button>
@@ -94,7 +115,13 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <SendReportModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} selectedDate={selectedDate} onDateChange={setSelectedDate} fullReportData={[]} />
+      <SendReportModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        selectedDate={selectedDate} 
+        onDateChange={setSelectedDate} 
+        fullReportData={reportDataForEmail} 
+      />
     </div>
   )
 }

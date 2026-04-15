@@ -84,12 +84,20 @@ export default function DashboardPage() {
     }
   })
 
+  // 🔴 อัปเดตฟังก์ชันนี้ เพื่อให้ส่งค่า hasLinkedItems และ totalCombinedStock ออกไปให้ตารางโชว์ด้วย
   const fullReportData = dashboardRows.map(row => {
     let calcOrder = 0;
+    let hasLinkedItems = false;
+    let totalCombinedStock = row.evening_counted !== null ? row.evening_counted : row.totalAvailable;
+
     if (row.evening_counted !== null && row.min_limit !== null && row.max_limit !== null) {
-      let totalCombinedStock = row.evening_counted;
       const linkedPrepItems = dashboardRows.filter(p => p.raw_material_id === row.id);
-      linkedPrepItems.forEach(prepItem => { totalCombinedStock += (prepItem.evening_counted !== null ? prepItem.evening_counted : prepItem.totalAvailable); });
+      if (linkedPrepItems.length > 0) {
+        hasLinkedItems = true;
+        linkedPrepItems.forEach(prepItem => { 
+          totalCombinedStock += (prepItem.evening_counted !== null ? prepItem.evening_counted : prepItem.totalAvailable); 
+        });
+      }
       
       totalCombinedStock = Number(totalCombinedStock.toFixed(1));
       if (totalCombinedStock <= row.min_limit) { 
@@ -100,7 +108,22 @@ export default function DashboardPage() {
     let finalOrderAmount = row.actual_order_qty !== null ? row.actual_order_qty : calcOrder;
     let needsOrder = finalOrderAmount > 0;
 
-    return { product_id: row.id, check_id: row.check_id, actual_order_qty: row.actual_order_qty, name: row.name, category: row.categoryName, unit: row.unit, yesterday: row.yesterday_balance, incoming: row.incoming, evening: row.evening_counted !== null ? row.evening_counted : '-', used: row.usedAmount !== null ? row.usedAmount : '-', orderAmount: needsOrder ? `+${finalOrderAmount}` : '-', needsOrder: needsOrder };
+    return { 
+      product_id: row.id, 
+      check_id: row.check_id, 
+      actual_order_qty: row.actual_order_qty, 
+      name: row.name, 
+      category: row.categoryName, 
+      unit: row.unit, 
+      yesterday: row.yesterday_balance, 
+      incoming: row.incoming, 
+      evening: row.evening_counted !== null ? row.evening_counted : '-', 
+      used: row.usedAmount !== null ? row.usedAmount : '-', 
+      orderAmount: needsOrder ? `+${finalOrderAmount}` : '-', 
+      needsOrder: needsOrder,
+      hasLinkedItems: hasLinkedItems,            // 🔴 เพิ่มส่งค่าเช็คของเตรียม
+      totalCombinedStock: totalCombinedStock     // 🔴 เพิ่มส่งค่ายอดรวมทั้งหมด
+    };
   });
 
   const itemsToOrder = fullReportData.filter(item => item.needsOrder).map(item => ({ ...item, currentStock: item.evening, isCombined: false }));
@@ -241,6 +264,13 @@ export default function DashboardPage() {
                         <div className="font-bold text-[#df2323] text-xl sm:text-2xl">{item.orderAmount}</div>
                         <div className="text-[10px] sm:text-xs text-[#df2323] mb-1">{item.unit}</div>
                         <button onClick={() => { setEditingOrderId(item.product_id); setEditOrderQty(item.orderAmount === '-' ? '' : item.orderAmount.replace('+','')); }} className="mt-1 text-[10px] sm:text-xs bg-white border border-red-200 text-[#be123c] px-2.5 sm:px-3 py-1 rounded-full font-bold shadow-sm hover:bg-red-50 active:scale-95 transition-all flex items-center justify-center gap-1 w-fit mx-auto">✏️ แก้ไข</button>
+                        
+                        {/* 🔴 ส่วนที่เพิ่มเข้ามา: แสดงรวมยอดเตรียม ของสดที่ผูกไว้ */}
+                        {item.hasLinkedItems && item.currentStock !== '-' && (
+                          <div className="text-[9px] sm:text-[10px] text-gray-500 font-medium mt-1.5 leading-tight text-center">
+                            รวมยอดเตรียม<br/>({item.totalCombinedStock} {item.unit})
+                          </div>
+                        )}
                       </div>
                     )}
                   </td>

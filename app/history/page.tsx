@@ -15,7 +15,6 @@ export default function HistoryPage() {
 
   const [historyData, setHistoryData] = useState<HistoryItem[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
-  const [recentOrders, setRecentOrders] = useState<Record<number, string>>({})
   
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editYest, setEditYest] = useState('')
@@ -46,12 +45,6 @@ export default function HistoryPage() {
       .order('id', { ascending: true })
       
     if (data) setHistoryData(data as HistoryItem[])
-
-    const { data: orderHistory } = await supabase
-      .from('daily_stock_checks').select('product_id, check_date').gt('actual_order_qty', 0).lt('check_date', selectedDate).eq('branch_id', currentBranch.id).order('check_date', { ascending: false });
-    const recentOrderMap: Record<number, string> = {}
-    if (orderHistory) { orderHistory.forEach(item => { if (!recentOrderMap[item.product_id]) recentOrderMap[item.product_id] = item.check_date }) }
-    setRecentOrders(recentOrderMap)
   }
 
   useEffect(() => { if(currentBranch) fetchHistory(); categoryRefs.current = {}; }, [selectedDate, currentBranch])
@@ -104,24 +97,14 @@ export default function HistoryPage() {
         if (totalCombinedStock <= item.products.min_limit) calcOrderAmt = Math.ceil(item.products.max_limit - totalCombinedStock);
       }
 
-      // 🔴 แก้ไข TypeScript Error ตรงนี้ โดยใช้ ?? แทน
       const finalOrderAmt = item.actual_order_qty ?? calcOrderAmt;
-      
-      let isOnCooldown = false;
-      if (item.products?.order_interval_days && item.products?.order_interval_days > 0 && recentOrders[item.product_id]) {
-        const lastDate = new Date(recentOrders[item.product_id]); const currDate = new Date(selectedDate);
-        const diffDays = Math.ceil(Math.abs(currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays <= item.products.order_interval_days) isOnCooldown = true;
-      }
-
       let needsOrder = finalOrderAmt > 0;
-      if (isOnCooldown && item.actual_order_qty == null) needsOrder = false; // 🔴 เปลี่ยนเป็น == null เพื่อเช็คทั้ง null และ undefined
 
       return {
         product_id: item.product_id, check_id: item.id, actual_order_qty: item.actual_order_qty,
         name: item.products?.name || 'ไม่ทราบชื่อ', category: item.products?.categories?.name || 'ไม่มีหมวดหมู่', unit: item.products?.unit || '',
         yesterday: item.yesterday_balance, incoming: item.incoming, evening: eveningCounted, used: usedAmount,
-        orderAmount: needsOrder ? `+${finalOrderAmt}` : (isOnCooldown && item.actual_order_qty == null ? 'รอของ' : '-'), needsOrder: needsOrder
+        orderAmount: needsOrder ? `+${finalOrderAmt}` : '-', needsOrder: needsOrder
       };
     });
 
@@ -222,18 +205,8 @@ export default function HistoryPage() {
                       let calcOrderAmt = 0;
                       if (item.evening_counted !== null && item.products?.min_limit !== null && item.products?.max_limit !== null) { if (totalCombinedStock <= item.products.min_limit) calcOrderAmt = Math.ceil(item.products.max_limit - totalCombinedStock); }
                       
-                      // 🔴 แก้ไข TypeScript Error ตรงนี้ โดยใช้ ?? แทน
                       const finalOrderAmt = item.actual_order_qty ?? calcOrderAmt;
-                      
-                      let isOnCooldown = false;
-                      if (item.products?.order_interval_days && item.products?.order_interval_days > 0 && recentOrders[item.product_id]) {
-                        const lastDate = new Date(recentOrders[item.product_id]); const currDate = new Date(selectedDate);
-                        const diffDays = Math.ceil(Math.abs(currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-                        if (diffDays <= item.products.order_interval_days) isOnCooldown = true;
-                      }
-
                       let needsOrder = finalOrderAmt > 0;
-                      if (isOnCooldown && item.actual_order_qty == null) needsOrder = false; // 🔴 เปลี่ยนเป็น == null เพื่อเช็คทั้ง null และ undefined
 
                       return (
                         <tr key={item.id} ref={(el) => { if(index === 0) categoryRefs.current[category] = el; }} className="border-b border-gray-100 hover:bg-gray-50/80 transition-colors group">
@@ -258,7 +231,7 @@ export default function HistoryPage() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center">
-                                  <span className={needsOrder ? "text-xl sm:text-2xl" : "text-lg"}>{needsOrder ? `+${finalOrderAmt}` : (isOnCooldown && item.actual_order_qty == null ? <span className="text-blue-500 text-sm">⏳ รอของ</span> : '-')}</span>
+                                  <span className={needsOrder ? "text-xl sm:text-2xl" : "text-lg"}>{needsOrder ? `+${finalOrderAmt}` : '-'}</span>
                                   <button onClick={() => { setEditingOrderId(item.id); setEditOrderQty(finalOrderAmt === 0 ? '' : String(finalOrderAmt)); }} className={`mt-1.5 text-[10px] sm:text-xs bg-white border px-2.5 sm:px-3 py-1 rounded-full font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1 w-fit mx-auto ${needsOrder ? 'border-red-200 text-[#be123c] hover:bg-red-50' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                                     ✏️ {needsOrder ? 'แก้ไข' : 'สั่งเพิ่ม'}
                                   </button>
